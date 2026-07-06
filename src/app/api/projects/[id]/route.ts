@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server"
 
 const BACKEND = process.env.BACKEND_URL ?? "http://localhost:8000"
+const isLocal = BACKEND.includes("localhost")
 
 export async function GET(
   _req: NextRequest,
@@ -20,7 +21,7 @@ export async function GET(
     const docsData = docsRes.ok ? await docsRes.json() : { documents: [] }
     return NextResponse.json({ project, documents: docsData.documents ?? [] })
   } catch {
-    if (process.env.NODE_ENV === 'development') {
+    if (isLocal) {
       const { mockProjects, mockDocuments } = await import("@/lib/mock-data")
       const project = mockProjects.find((p) => p.id === id)
       if (!project) return NextResponse.json({ error: "Not found" }, { status: 404 })

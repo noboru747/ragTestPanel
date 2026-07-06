@@ -425,8 +425,10 @@ export default function DashboardPage() {
       .then((r) => r.json())
       .then((d) => {
         setData(d)
-        // 若後端有回 stats.totalProjects 且不是 mock 的固定數字，判斷為真實資料
-        setIsRealData(true)
+        // mock 資料固定值：totalProjects=4, projects.length=4
+        // 兩者皆符合才視為 mock，否則判斷為真實資料
+        const isMockData = d.stats?.totalProjects === 4 && d.projects?.length === 4
+        setIsRealData(!isMockData)
       })
   }, [])
 

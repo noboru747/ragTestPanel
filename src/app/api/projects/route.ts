@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server"
 
 const BACKEND = process.env.BACKEND_URL ?? "http://localhost:8000"
+const isLocal = BACKEND.includes("localhost")
 
 export async function GET() {
   try {
@@ -8,7 +9,7 @@ export async function GET() {
     if (!res.ok) throw new Error(await res.text())
     return NextResponse.json(await res.json())
   } catch {
-    if (process.env.NODE_ENV === 'development') {
+    if (isLocal) {
       const { mockProjects, mockStats } = await import("@/lib/mock-data")
       return NextResponse.json({ projects: mockProjects, stats: mockStats })
     }
