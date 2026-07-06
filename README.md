@@ -23,6 +23,63 @@ docker compose up -d
 
 > **首次啟動**：系統會自動下載 nomic-embed-text 和 llama3.2:3b 兩個 Ollama 模型，請耐心等待。
 
+## Vercel 部署（前端 + Cloudflare Tunnel 後端）
+
+此模式將前端部署到 Vercel，後端繼續在本機 Docker 運行，透過 Cloudflare Tunnel 對外提供服務。
+
+### 前置條件
+
+1. [Cloudflare 帳號](https://cloudflare.com) + 已綁定網域
+2. 安裝 `cloudflared`：
+   ```bash
+   # Windows
+   winget install Cloudflare.cloudflared
+   ```
+3. 本機 Docker 保持運行（`docker compose up -d`）
+
+### Step 1：建立 Cloudflare Tunnel
+
+```bash
+cloudflared tunnel login
+cloudflared tunnel create rga-backend
+cloudflared tunnel route dns rga-backend api.你的網域.com
+```
+
+建立設定檔 `~/.cloudflared/config.yml`：
+```yaml
+tunnel: <你的 tunnel ID>
+credentials-file: ~/.cloudflared/<tunnel-ID>.json
+
+ingress:
+  - hostname: api.你的網域.com
+    service: http://localhost:8000
+  - service: http_status:404
+```
+
+啟動 Tunnel：
+```bash
+cloudflared tunnel run rga-backend
+```
+
+### Step 2：部署前端到 Vercel
+
+1. 前往 [vercel.com](https://vercel.com) → Import Git Repository
+2. 選擇 `ragTestPanel`
+3. 在 **Environment Variables** 設定：
+
+| 變數名稱 | 值 |
+|---------|-----|
+| `BACKEND_URL` | `https://api.你的網域.com` |
+| `NEXT_PUBLIC_SHOW_OCR` | `false` |
+
+4. Deploy
+
+### 注意事項
+
+- 本機電腦必須開機且 Docker 運行，外部使用者才能連線
+- 建議在 Cloudflare Access 設定存取保護（Google 登入驗證），避免後端完全公開
+- RAG 查詢 / 文件生成需要 Ollama 處理，回應時間視硬體而定（CPU 約 15–60 秒）
+
 ## 系統架構
 
 ```
