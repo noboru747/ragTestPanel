@@ -8,6 +8,7 @@ import {
   Upload,
   GitBranch,
   BookOpen,
+  FileText,
 } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { Badge } from "@/components/ui/badge"
@@ -17,6 +18,7 @@ const SHOW_OCR = process.env.NEXT_PUBLIC_SHOW_OCR === "true"
 const navItems = [
   { href: "/", icon: LayoutDashboard, label: "儀表板" },
   { href: "/query", icon: MessageSquareText, label: "知識查詢" },
+  { href: "/generate", icon: FileText, label: "生成文件" },
   ...(SHOW_OCR ? [{ href: "/ocr", icon: Upload, label: "OCR 入庫", local: true }] : []),
   { href: "/git", icon: GitBranch, label: "Git 整合" },
 ]
