@@ -22,9 +22,11 @@
 
 # misc
 .DS_Store
+Thumbs.db
 *.pem
 
-# debug
+# debug / logs
+*.log
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
@@ -32,6 +34,7 @@ yarn-error.log*
 
 # env files (can opt-in for committing if needed)
 .env*
+!.env.example
 
 # vercel
 .vercel
@@ -39,3 +42,23 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+*.egg-info/
+*.egg
+dist/
+backend/__pycache__/
+backend/**/__pycache__/
+
+# dynamic runtime data (user-specific, not for repo)
+backend/requests/*.md
+backend/uploads/
+backend/git_repos/
+
+# local settings
+.claude/settings.local.json

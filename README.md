@@ -1,36 +1,74 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# RGA KM System
 
-## Getting Started
+> 以 RAG（Retrieval-Augmented Generation）為核心的知識管理系統，支援文件語意查詢、OCR 入庫、文件模板管理與 Git 整合。
 
-First, run the development server:
+## 快速啟動
+
+**前置條件：** Docker Desktop 已安裝並執行
 
 ```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+# 1. Clone 專案
+git clone https://github.com/noboru747/ragTestPanel.git
+cd ragTestPanel
+
+# 2. 複製環境設定
+cp .env.example .env
+
+# 3. 一鍵啟動（首次約需 5-10 分鐘下載 AI 模型）
+docker compose up -d
+
+# 4. 開啟瀏覽器
+# http://localhost:3000
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+> **首次啟動**：系統會自動下載 nomic-embed-text 和 llama3.2:3b 兩個 Ollama 模型，請耐心等待。
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+## 系統架構
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+```
+瀏覽器 (localhost:3000)
+  └─ Next.js 前端
+       └─ FastAPI 後端 (localhost:8000)
+            ├─ PostgreSQL + pgvector（向量資料庫）
+            └─ Ollama（本地 LLM）
+```
 
-## Learn More
+## 功能說明
 
-To learn more about Next.js, take a look at the following resources:
+### 專案管理
+- 建立並管理多個知識庫專案
+- 每個專案獨立儲存與查詢文件
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+### 知識查詢
+- 語意搜尋（RAG）：輸入問題，系統從專案文件找出相關段落並生成回答
+- 依專案切換查詢範圍
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+### OCR 入庫（本地模式）
+- 支援 PDF、Word（.doc/.docx）、圖片上傳
+- 文字自動提取並向量化入庫
+- 啟用方式：在 `.env` 設定 `NEXT_PUBLIC_SHOW_OCR=true`
 
-## Deploy on Vercel
+### 文件模板管理
+- 建立可重複使用的文件模板（如：規格建議書、人力經費申請表）
+- 每個模板可自訂欄位（文字 / 數字 / 日期 / 多行文字）
+- 模板與專案分離，可跨專案使用
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+### Git 整合
+- 連結 Git 儲存庫，將版本控制資料納入知識庫
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+## 環境變數
+
+| 變數 | 預設值 | 說明 |
+|------|--------|------|
+| `POSTGRES_DB` | `rga_km` | 資料庫名稱 |
+| `POSTGRES_USER` | `rga_user` | 資料庫使用者 |
+| `POSTGRES_PASSWORD` | `rga_pass` | 資料庫密碼 |
+| `EMBED_MODEL` | `nomic-embed-text` | 向量化模型 |
+| `CHAT_MODEL` | `llama3.2:3b` | 對話生成模型 |
+| `NEXT_PUBLIC_SHOW_OCR` | `false` | 是否顯示 OCR 入庫功能 |
+
+## 注意事項
+
+- 專案資料與文件索引儲存於 Docker volume，重啟不會遺失
+- 刪除 volume（`docker compose down -v`）會清除所有資料
+- GPU 加速：編輯 `docker-compose.yml`，取消 ollama service 下的 `deploy` 區塊註解

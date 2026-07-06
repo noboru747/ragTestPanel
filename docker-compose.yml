@@ -1,0 +1,99 @@
+name: rga-km
+
+services:
+  postgres:
+    image: pgvector/pgvector:pg16
+    container_name: rga_postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-rga_km}
+      POSTGRES_USER: ${POSTGRES_USER:-rga_user}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-rga_pass}
+    ports:
+      - "5433:5432"      # host 5433 避免與其他 postgres 衝突
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./backend/db/init.sql:/docker-entrypoint-initdb.d/init.sql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-rga_user} -d ${POSTGRES_DB:-rga_km}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  ollama:
+    image: ollama/ollama:latest
+    container_name: rga_ollama
+    restart: unless-stopped
+    ports:
+      - "11434:11434"
+    volumes:
+      - ollama_models:/root/.ollama
+    # GPU 加速（需要 NVIDIA Container Toolkit，取消下方註解啟用）
+    # deploy:
+    #   resources:
+    #     reservations:
+    #       devices:
+    #         - driver: nvidia
+    #           count: all
+    #           capabilities: [gpu]
+
+  ollama-init:
+    image: ollama/ollama:latest
+    container_name: rga_ollama_init
+    depends_on:
+      ollama:
+        condition: service_started
+    entrypoint: >
+      /bin/sh -c "
+        sleep 5 &&
+        OLLAMA_HOST=http://ollama:11434 ollama pull nomic-embed-text &&
+        OLLAMA_HOST=http://ollama:11434 ollama pull llama3.2:3b &&
+        echo 'Models ready.'
+      "
+    volumes:
+      - ollama_models:/root/.ollama
+    restart: "no"
+
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: rga_backend
+    restart: unless-stopped
+    ports:
+      - "8000:8000"
+    environment:
+      # 後端透過 Docker 內部網路連 postgres:5432（不走 host port）
+      DATABASE_URL: postgresql://${POSTGRES_USER:-rga_user}:${POSTGRES_PASSWORD:-rga_pass}@postgres:5432/${POSTGRES_DB:-rga_km}
+      OLLAMA_BASE_URL: http://ollama:11434
+      EMBED_MODEL: ${EMBED_MODEL:-nomic-embed-text}
+      CHAT_MODEL: ${CHAT_MODEL:-llama3.2:3b}
+      VISION_MODEL: ${VISION_MODEL:-qwen2.5vl:7b}
+      GIT_WORKSPACE: /workspace/repos
+    volumes:
+      - ./backend:/app
+      - git_repos:/workspace/repos
+    depends_on:
+      postgres:
+        condition: service_healthy
+      ollama:
+        condition: service_started
+
+  frontend:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: rga_frontend
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    environment:
+      BACKEND_URL: http://backend:8000
+      NEXT_PUBLIC_SHOW_OCR: ${NEXT_PUBLIC_SHOW_OCR:-false}
+    depends_on:
+      - backend
+
+volumes:
+  postgres_data:
+  ollama_models:
+  git_repos:

@@ -1,0 +1,11 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(*)",
+      "PowerShell(*)",
+      "Read",
+      "Edit(c:\\myLab\\rga-km-system-free\\**)",
+      "Write(c:\\myLab\\rga-km-system-free\\**)"
+    ]
+  }
+}
