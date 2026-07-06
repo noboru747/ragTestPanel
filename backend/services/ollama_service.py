@@ -7,9 +7,9 @@ class OllamaService:
     def __init__(self):
         self.base_url = settings.ollama_base_url
 
-    async def chat(self, prompt: str, model: str | None = None) -> str:
+    async def chat(self, prompt: str, model: str | None = None, timeout: int = 120) -> str:
         model = model or settings.chat_model
-        async with httpx.AsyncClient(timeout=120) as client:
+        async with httpx.AsyncClient(timeout=timeout) as client:
             res = await client.post(
                 f"{self.base_url}/api/generate",
                 json={"model": model, "prompt": prompt, "stream": False},

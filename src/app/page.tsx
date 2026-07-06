@@ -1,6 +1,7 @@
 "use client"
 
 import { useEffect, useState, useCallback } from "react"
+import { useRouter } from "next/navigation"
 import Link from "next/link"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
@@ -30,6 +31,7 @@ import {
   Database,
   Loader2,
   Trash2,
+  Sparkles,
 } from "lucide-react"
 
 type TemplateField = {
@@ -415,6 +417,7 @@ function NewProjectDialog({ onCreated }: { onCreated: () => void }) {
 }
 
 export default function DashboardPage() {
+  const router = useRouter()
   const [data, setData] = useState<{ projects: Project[]; stats: Stats } | null>(null)
   const [isRealData, setIsRealData] = useState(false)
   const [templates, setTemplates] = useState<Template[] | null>(null)
@@ -657,6 +660,21 @@ export default function DashboardPage() {
                         <Clock className="h-3 w-3" />
                         {new Date(tmpl.created_at).toLocaleDateString("zh-TW")}
                       </span>
+                    </div>
+                    {/* Generate button */}
+                    <div className="pt-1">
+                      <Button
+                        size="sm"
+                        variant="secondary"
+                        className="gap-1.5 w-full"
+                        onClick={(e) => {
+                          e.preventDefault()
+                          router.push(`/generate/${tmpl.id}`)
+                        }}
+                      >
+                        <Sparkles className="h-3.5 w-3.5" />
+                        生成文件
+                      </Button>
                     </div>
                   </CardContent>
                 </Card>
