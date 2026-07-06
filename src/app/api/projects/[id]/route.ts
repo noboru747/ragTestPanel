@@ -20,10 +20,13 @@ export async function GET(
     const docsData = docsRes.ok ? await docsRes.json() : { documents: [] }
     return NextResponse.json({ project, documents: docsData.documents ?? [] })
   } catch {
-    const { mockProjects, mockDocuments } = await import("@/lib/mock-data")
-    const project = mockProjects.find((p) => p.id === id)
-    if (!project) return NextResponse.json({ error: "Not found" }, { status: 404 })
-    return NextResponse.json({ project, documents: mockDocuments[id] ?? [] })
+    if (process.env.NODE_ENV === 'development') {
+      const { mockProjects, mockDocuments } = await import("@/lib/mock-data")
+      const project = mockProjects.find((p) => p.id === id)
+      if (!project) return NextResponse.json({ error: "Not found" }, { status: 404 })
+      return NextResponse.json({ project, documents: mockDocuments[id] ?? [] })
+    }
+    return NextResponse.json({ error: "Not found" }, { status: 404 })
   }
 }
 

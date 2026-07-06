@@ -8,9 +8,11 @@ export async function GET() {
     if (!res.ok) throw new Error(await res.text())
     return NextResponse.json(await res.json())
   } catch {
-    // fallback to mock when backend is not available (Vercel demo)
-    const { mockProjects, mockStats } = await import("@/lib/mock-data")
-    return NextResponse.json({ projects: mockProjects, stats: mockStats })
+    if (process.env.NODE_ENV === 'development') {
+      const { mockProjects, mockStats } = await import("@/lib/mock-data")
+      return NextResponse.json({ projects: mockProjects, stats: mockStats })
+    }
+    return NextResponse.json({ projects: [], stats: null })
   }
 }
 
