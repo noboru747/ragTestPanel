@@ -66,9 +66,15 @@ export function FeedbackModal({ open, onClose }: Props) {
 
   if (!open) return null
 
-  const handleSubmit = () => {
+  const handleSubmit = async () => {
     if (!topic.trim() || !content.trim()) return
-    saveFeedback({ page, topic: topic.trim(), content: content.trim() })
+    try {
+      await fetch("/api/feedback", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ page, topic: topic.trim(), content: content.trim() }),
+      })
+    } catch {}
     setTopic("")
     setContent("")
     setDone(true)

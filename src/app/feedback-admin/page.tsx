@@ -2,12 +2,7 @@
 
 import { useEffect, useState } from "react"
 import { Trash2, RefreshCw } from "lucide-react"
-import {
-  type FeedbackEntry,
-  loadFeedback,
-  deleteFeedback,
-  clearAllFeedback,
-} from "@/components/layout/FeedbackModal"
+import { type FeedbackEntry } from "@/components/layout/FeedbackModal"
 
 const PAGE_COLORS: Record<string, string> = {
   "儀表板":            "bg-blue-100 text-blue-700",
@@ -30,25 +25,36 @@ function pageBadge(page: string) {
 
 export default function FeedbackAdminPage() {
   const [entries, setEntries] = useState<FeedbackEntry[]>([])
+  const [loading, setLoading] = useState(true)
   const [filterPage, setFilterPage] = useState("全部")
 
-  const refresh = () => setEntries(loadFeedback())
+  const refresh = async () => {
+    setLoading(true)
+    try {
+      const res = await fetch("/api/feedback")
+      const data = await res.json()
+      setEntries(data.feedback ?? [])
+    } catch {
+      setEntries([])
+    } finally {
+      setLoading(false)
+    }
+  }
 
   useEffect(() => { refresh() }, [])
 
   const pages = ["全部", ...Array.from(new Set(entries.map((e) => e.page)))]
-
   const filtered = filterPage === "全部" ? entries : entries.filter((e) => e.page === filterPage)
 
-  const handleDelete = (id: string) => {
-    deleteFeedback(id)
-    refresh()
+  const handleDelete = async (id: string) => {
+    await fetch(`/api/feedback/${id}`, { method: "DELETE" })
+    setEntries((prev) => prev.filter((e) => e.id !== id))
   }
 
-  const handleClearAll = () => {
+  const handleClearAll = async () => {
     if (!confirm("確定清除所有回饋記錄？")) return
-    clearAllFeedback()
-    refresh()
+    await Promise.all(entries.map((e) => fetch(`/api/feedback/${e.id}`, { method: "DELETE" })))
+    setEntries([])
   }
 
   return (
@@ -58,7 +64,7 @@ export default function FeedbackAdminPage() {
         <div>
           <h1 className="text-xl font-bold text-gray-900">回饋管理</h1>
           <p className="text-sm text-muted-foreground mt-0.5">
-            共 {entries.length} 筆 · 僅在 dev 模式下顯示
+            共 {entries.length} 筆 · dev 模式
           </p>
         </div>
         <div className="flex gap-2">
@@ -103,10 +109,10 @@ export default function FeedbackAdminPage() {
       </div>
 
       {/* list */}
-      {filtered.length === 0 ? (
-        <div className="text-center py-16 text-muted-foreground text-sm">
-          尚無回饋記錄
-        </div>
+      {loading ? (
+        <div className="text-center py-16 text-muted-foreground text-sm">載入中...</div>
+      ) : filtered.length === 0 ? (
+        <div className="text-center py-16 text-muted-foreground text-sm">尚無回饋記錄</div>
       ) : (
         <div className="space-y-3">
           {filtered.map((entry) => (
