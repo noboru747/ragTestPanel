@@ -50,6 +50,7 @@ function PreviewContent() {
         @page { size: A4; margin: 2cm 2.5cm; }
       `}</style>
 
+      {/* 頂部 Nav */}
       <div className="no-print fixed top-0 left-0 right-0 z-50 bg-gray-900 text-white px-5 py-2.5 flex items-center justify-between shadow">
         <span className="text-sm font-medium">建議書預覽</span>
         <div className="flex gap-2">
@@ -68,8 +69,11 @@ function PreviewContent() {
         </div>
       </div>
 
-      <div className="pt-12 bg-white min-h-screen">
-        <ProposalDocument data={proposalData} images={images} editMode={false} />
+      {/* 深色底 + 白紙居中，左右各約 20% */}
+      <div className="pt-12 min-h-screen bg-gray-700" style={{ padding: "3rem 20%" }}>
+        <div className="bg-white shadow-2xl">
+          <ProposalDocument data={proposalData} images={images} editMode={false} />
+        </div>
       </div>
     </>
   )
