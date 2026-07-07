@@ -147,54 +147,16 @@ export default function GenerateFromTemplatePage({
   }
 
   /* ── PDF helpers ──────────────────────────────────────────────── */
-  const getPdfOptions = () => ({
-    margin: [20, 25, 20, 25],
-    image: { type: "jpeg" as const, quality: 0.97 },
-    html2canvas: { scale: 2, useCORS: true, logging: false },
-    jsPDF: { unit: "mm" as const, format: "a4" as const, orientation: "portrait" as const },
-  })
-
-  const handlePreviewPDF = async () => {
-    const el = document.getElementById("proposal-pdf-target")
-    if (!el) return
-    setPdfLoading("preview")
-    const wasEditing = editMode
-    if (wasEditing) setEditMode(false)
-    await new Promise((r) => setTimeout(r, 50))
-    try {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const html2pdf = ((await import("html2pdf.js")) as any).default
-      const blob: Blob = await html2pdf().set(getPdfOptions()).from(el).outputPdf("blob")
-      const url = URL.createObjectURL(blob)
-      window.open(url, "_blank")
-    } catch {
-      // html2canvas 不支援 oklch/lab CSS 色彩函數，fallback 到列印
-      window.print()
-    } finally {
-      if (wasEditing) setEditMode(true)
-      setPdfLoading(null)
-    }
+  const openPreviewWindow = (autoPrint = false) => {
+    if (!proposalData) return
+    const key = `rga-preview-${Date.now()}`
+    sessionStorage.setItem(key, JSON.stringify({ proposalData, images }))
+    const url = `/generate/preview?key=${key}${autoPrint ? "&print=1" : ""}`
+    window.open(url, "_blank")
   }
 
-  const handleDownloadPDF = async () => {
-    const el = document.getElementById("proposal-pdf-target")
-    if (!el) return
-    setPdfLoading("download")
-    const wasEditing = editMode
-    if (wasEditing) setEditMode(false)
-    await new Promise((r) => setTimeout(r, 50))
-    try {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const html2pdf = ((await import("html2pdf.js")) as any).default
-      const filename = `建議書_${form["案號"] || "draft"}_${new Date().toLocaleDateString("zh-TW").replace(/\//g, "")}.pdf`
-      await html2pdf().set({ ...getPdfOptions(), filename }).from(el).save()
-    } catch {
-      window.print()
-    } finally {
-      if (wasEditing) setEditMode(true)
-      setPdfLoading(null)
-    }
-  }
+  const handlePreviewPDF = () => openPreviewWindow(false)
+  const handleDownloadPDF = () => openPreviewWindow(true)
 
   /* ── image handlers ───────────────────────────────────────────── */
   const handleImageInsert = (slotId: string, file: File) => {
