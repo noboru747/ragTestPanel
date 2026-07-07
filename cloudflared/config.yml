@@ -1,0 +1,7 @@
+tunnel: 479776f7-b43a-4652-a4cb-5a125b0a4ef7
+credentials-file: /etc/cloudflared/creds/479776f7-b43a-4652-a4cb-5a125b0a4ef7.json
+
+ingress:
+  - hostname: rga.waniagent.top
+    service: http://backend:8000
+  - service: http_status:404

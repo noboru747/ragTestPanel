@@ -93,6 +93,17 @@ services:
     depends_on:
       - backend
 
+  cloudflared:
+    image: cloudflare/cloudflared:latest
+    container_name: rga_cloudflared
+    restart: unless-stopped
+    command: tunnel --config /etc/cloudflared/config.yml run
+    volumes:
+      - ./cloudflared/config.yml:/etc/cloudflared/config.yml:ro
+      - ${CLOUDFLARED_CREDS}:/etc/cloudflared/creds:ro
+    depends_on:
+      - backend
+
 volumes:
   postgres_data:
   ollama_models:
