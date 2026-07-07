@@ -26,6 +26,7 @@ type DraftEntry = {
   savedAt: string
   form: Record<string, string>
   proposalData: ProposalData
+  images?: InsertedImage[]
 }
 
 const STORAGE_KEY = "rga-km-proposal-drafts"
@@ -234,7 +235,7 @@ export default function GenerateFromTemplatePage({
                   onClick={() => {
                     setProposalData(d.proposalData)
                     setForm(d.form)
-                    setImages([])
+                    setImages(d.images ?? [])
                     setPhase("result")
                     setPanelOpen(false)
                     setTimeout(() => previewRef.current?.scrollIntoView({ behavior: "smooth" }), 100)
@@ -441,6 +442,28 @@ export default function GenerateFromTemplatePage({
                   }`}
                 >
                   {editMode ? "完成插入圖片" : "插入圖片"}
+                </button>
+                <button
+                  onClick={() => {
+                    if (!proposalData) return
+                    const draft: DraftEntry = {
+                      id: String(Date.now()),
+                      label: (form["案號"] || form["機關名稱"] || "草稿") + "（含圖）",
+                      savedAt: new Date().toISOString(),
+                      form,
+                      proposalData,
+                      images,
+                    }
+                    try {
+                      const existing: DraftEntry[] = JSON.parse(localStorage.getItem(STORAGE_KEY) ?? "[]")
+                      const next = [draft, ...existing].slice(0, 20)
+                      localStorage.setItem(STORAGE_KEY, JSON.stringify(next))
+                      setDrafts(next)
+                    } catch {}
+                  }}
+                  className="text-sm px-3 py-1.5 rounded-md border border-green-400 bg-green-50 text-green-700 hover:bg-green-100 transition-colors"
+                >
+                  更新草稿
                 </button>
                 <button
                   onClick={handlePreviewPDF}
