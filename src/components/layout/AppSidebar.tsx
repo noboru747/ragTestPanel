@@ -17,14 +17,13 @@ import { Badge } from "@/components/ui/badge"
 import { useState } from "react"
 import { FeedbackModal } from "@/components/layout/FeedbackModal"
 
-const SHOW_OCR = process.env.NEXT_PUBLIC_SHOW_OCR === "true"
 const IS_DEV = process.env.NODE_ENV === "development"
 
 const navItems = [
   { href: "/", icon: LayoutDashboard, label: "儀表板" },
   { href: "/query", icon: MessageSquareText, label: "知識查詢" },
   { href: "/generate", icon: FileText, label: "生成文件" },
-  ...(SHOW_OCR ? [{ href: "/ocr", icon: Upload, label: "OCR 入庫", local: true }] : []),
+  { href: "/ocr", icon: Upload, label: "OCR 入庫" },
   { href: "/git", icon: GitBranch, label: "Git 整合" },
 ]
 
@@ -43,7 +42,7 @@ export function AppSidebar() {
         </div>
 
         <nav className="flex-1 space-y-1 p-3">
-          {navItems.map(({ href, icon: Icon, label, local }) => {
+          {navItems.map(({ href, icon: Icon, label }) => {
             const active = href === "/" ? pathname === "/" : pathname.startsWith(href)
             return (
               <Link
@@ -57,12 +56,7 @@ export function AppSidebar() {
                 )}
               >
                 <Icon className="h-4 w-4 shrink-0" />
-                <span className="flex-1">{label}</span>
-                {local && (
-                  <Badge variant="outline" className="text-[10px] px-1 py-0">
-                    本地
-                  </Badge>
-                )}
+                <span>{label}</span>
               </Link>
             )
           })}
