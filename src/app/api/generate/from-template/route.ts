@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server"
 
-export const maxDuration = 120
+export const maxDuration = 300
 
 const BACKEND = process.env.BACKEND_URL ?? "http://localhost:8000"
 
@@ -11,7 +11,7 @@ export async function POST(req: NextRequest) {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(body),
-      signal: AbortSignal.timeout(115_000),
+      signal: AbortSignal.timeout(290_000),
     })
     if (!res.ok) {
       const err = await res.text()

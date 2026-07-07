@@ -130,6 +130,9 @@ export default function GenerateFromTemplatePage({
       const blob: Blob = await html2pdf().set(getPdfOptions()).from(el).outputPdf("blob")
       const url = URL.createObjectURL(blob)
       window.open(url, "_blank")
+    } catch {
+      // html2canvas 不支援 oklch/lab CSS 色彩函數，fallback 到列印
+      window.print()
     } finally {
       if (wasEditing) setEditMode(true)
       setPdfLoading(null)
@@ -148,6 +151,8 @@ export default function GenerateFromTemplatePage({
       const html2pdf = ((await import("html2pdf.js")) as any).default
       const filename = `建議書_${form["案號"] || "draft"}_${new Date().toLocaleDateString("zh-TW").replace(/\//g, "")}.pdf`
       await html2pdf().set({ ...getPdfOptions(), filename }).from(el).save()
+    } catch {
+      window.print()
     } finally {
       if (wasEditing) setEditMode(true)
       setPdfLoading(null)

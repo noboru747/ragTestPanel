@@ -176,37 +176,31 @@ async def generate_from_template(payload: dict, db: AsyncSession = Depends(get_d
 
     # ── 建議書流程 ────────────────────────────────────────────────────────
     if is_proposal:
-        prompt = f"""你是政府採購標案顧問。根據以下參考資料和標案資訊，生成建議書內容。
-請嚴格使用繁體中文，所有機關名稱、地名、專有名詞保留原文，不得翻譯成英文。
+        prompt = f"""你是政府採購顧問，使用繁體中文，保留所有中文專有名詞原文不得翻譯。
 
-## 參考資料（過往案件）
-{context}
+參考資料：
+{context[:2000]}
 
-## 本次標案
-- 機關名稱：{court_name}
-- 標案名稱：{case_title}
-- 案號：{case_code}
-- 需求重點：{requirements}
+標案：{court_name} {case_title}（{case_code}）
+需求：{requirements}
 
-請依格式輸出以下四個區塊（保留標題行）：
+輸出以下四個區塊，每區塊2句即可：
 
 [SCOPE]
-履約標的說明（3-5句，說明服務範圍與期間）
+（履約標的與服務期間）
 
 [WORK_ITEMS]
-工作要項一：標題｜詳細說明（2-3句）
-工作要項二：標題｜詳細說明
-工作要項三：標題｜詳細說明
-工作要項四：標題｜詳細說明
+工作要項一：標題｜說明
+工作要項二：標題｜說明
+工作要項三：標題｜說明
 
 [TEAM_STRUCTURE]
-組織與分工說明（2-3句，說明專案經理與工程師配置）
+（人力配置說明）
 
 [QUALITY_MANAGEMENT]
-品質保證管理說明（3-4句，說明 SLA、PDCA、回應時間等）
-"""
+（SLA與品質管理說明）"""
 
-        generated = await ollama.chat(prompt, timeout=120)
+        generated = await ollama.chat(prompt, timeout=240)
 
         # ── 解析生成內容 ──────────────────────────────────────────────────
 
