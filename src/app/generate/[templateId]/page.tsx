@@ -67,8 +67,26 @@ export default function GenerateFromTemplatePage({
   const [drafts, setDrafts] = useState<DraftEntry[]>([])
   const [panelOpen, setPanelOpen] = useState(false)
 
-  /* edit panel */
-  const [editPanelOpen, setEditPanelOpen] = useState(false)
+  /* section edit modal */
+  const [editingSection, setEditingSection] = useState<string | null>(null)
+  const [sectionDraft, setSectionDraft] = useState<ProposalData | null>(null)
+
+  const handleSectionEdit = (sectionId: string) => {
+    if (!proposalData) return
+    setSectionDraft(JSON.parse(JSON.stringify(proposalData)))
+    setEditingSection(sectionId)
+  }
+
+  const handleEditConfirm = () => {
+    if (sectionDraft) setProposalData(sectionDraft)
+    setEditingSection(null)
+    setSectionDraft(null)
+  }
+
+  const handleEditCancel = () => {
+    setEditingSection(null)
+    setSectionDraft(null)
+  }
 
   const previewRef = useRef<HTMLDivElement>(null)
 
@@ -401,11 +419,316 @@ export default function GenerateFromTemplatePage({
     )
   }
 
+  /* ── section labels for modal header ─────────────────────────── */
+  const SECTION_LABELS: Record<string, string> = {
+    cover:     "封面資訊",
+    summary:   "建議書摘要表",
+    scope:     "履約標的",
+    objectives:"需求目標",
+    workItems: "工作要項",
+    hrPlan:    "人力配置說明",
+    quality:   "品質保證管理",
+    company:   "公司基本資料",
+    pricing:   "價格分析",
+  }
+
+  /* ── section edit modal ───────────────────────────────────────── */
+  const ta = (
+    value: string,
+    onChange: (v: string) => void,
+    rows = 3,
+  ) => (
+    <textarea
+      value={value}
+      onChange={e => onChange(e.target.value)}
+      rows={rows}
+      className="w-full rounded border border-gray-200 px-3 py-2 text-sm resize-y focus:outline-none focus:ring-2 focus:ring-amber-400"
+    />
+  )
+
+  const inp = (value: string, onChange: (v: string) => void, placeholder = "") => (
+    <input
+      value={value}
+      onChange={e => onChange(e.target.value)}
+      placeholder={placeholder}
+      className="w-full h-9 rounded border border-gray-200 px-3 text-sm focus:outline-none focus:ring-2 focus:ring-amber-400"
+    />
+  )
+
+  const label = (text: string) => (
+    <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1">{text}</label>
+  )
+
+  const SectionModal = editingSection && sectionDraft ? (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+      <div className="bg-white rounded-xl shadow-2xl w-full max-w-2xl max-h-[88vh] flex flex-col">
+        {/* header */}
+        <div className="px-6 py-4 border-b flex items-center justify-between shrink-0">
+          <h3 className="font-semibold text-gray-800">
+            <span className="text-amber-500 mr-2">✏</span>
+            {SECTION_LABELS[editingSection] ?? editingSection}
+          </h3>
+          <button onClick={handleEditCancel} className="text-gray-400 hover:text-gray-700 text-xl leading-none">&times;</button>
+        </div>
+
+        {/* body */}
+        <div className="flex-1 overflow-y-auto px-6 py-5 space-y-5">
+
+          {editingSection === "cover" && (
+            <>
+              <div>{label("機關名稱")}{inp(sectionDraft.courtName, v => setSectionDraft(d => d ? { ...d, courtName: v } : d))}</div>
+              <div>{label("標案名稱")}{inp(sectionDraft.caseTitle, v => setSectionDraft(d => d ? { ...d, caseTitle: v } : d))}</div>
+              <div className="grid grid-cols-2 gap-4">
+                <div>{label("案號")}{inp(sectionDraft.caseCode, v => setSectionDraft(d => d ? { ...d, caseCode: v } : d))}</div>
+                <div>{label("提交日期")}{inp(sectionDraft.submissionDate, v => setSectionDraft(d => d ? { ...d, submissionDate: v } : d))}</div>
+              </div>
+              <div>{label("投標公司")}{inp(sectionDraft.companyName, v => setSectionDraft(d => d ? { ...d, companyName: v } : d))}</div>
+              <div>{label("地址")}{inp(sectionDraft.companyAddress, v => setSectionDraft(d => d ? { ...d, companyAddress: v } : d))}</div>
+              <div className="grid grid-cols-2 gap-4">
+                <div>{label("聯絡人")}{inp(sectionDraft.contactPerson, v => setSectionDraft(d => d ? { ...d, contactPerson: v } : d))}</div>
+                <div>{label("電話")}{inp(sectionDraft.contactPhone, v => setSectionDraft(d => d ? { ...d, contactPhone: v } : d))}</div>
+              </div>
+            </>
+          )}
+
+          {editingSection === "summary" && sectionDraft.summary.map((s, i) => (
+            <div key={i}>
+              {label(s.category)}
+              {ta(s.content, v => setSectionDraft(d => {
+                if (!d) return d
+                const summary = [...d.summary]
+                summary[i] = { ...summary[i], content: v }
+                return { ...d, summary }
+              }), 3)}
+            </div>
+          ))}
+
+          {editingSection === "scope" && (
+            <div>{label("履約標的說明")}{ta(sectionDraft.projectOverview.scope, v => setSectionDraft(d => d ? { ...d, projectOverview: { ...d.projectOverview, scope: v } } : d), 5)}</div>
+          )}
+
+          {editingSection === "objectives" && (
+            <div className="space-y-2">
+              {label("需求目標（每行一項）")}
+              {sectionDraft.projectOverview.objectives.map((obj, i) => (
+                <div key={i} className="flex gap-2">
+                  {inp(obj, v => setSectionDraft(d => {
+                    if (!d) return d
+                    const objectives = [...d.projectOverview.objectives]
+                    objectives[i] = v
+                    return { ...d, projectOverview: { ...d.projectOverview, objectives } }
+                  }))}
+                  <button
+                    onClick={() => setSectionDraft(d => {
+                      if (!d) return d
+                      const objectives = d.projectOverview.objectives.filter((_, j) => j !== i)
+                      return { ...d, projectOverview: { ...d.projectOverview, objectives } }
+                    })}
+                    className="text-xs text-red-400 hover:text-red-600 px-2 border border-red-200 rounded shrink-0"
+                  >刪</button>
+                </div>
+              ))}
+              <button
+                onClick={() => setSectionDraft(d => {
+                  if (!d) return d
+                  const objectives = [...d.projectOverview.objectives, ""]
+                  return { ...d, projectOverview: { ...d.projectOverview, objectives } }
+                })}
+                className="text-xs text-amber-600 border border-amber-300 rounded px-3 py-1 hover:bg-amber-50"
+              >+ 新增目標</button>
+            </div>
+          )}
+
+          {editingSection === "workItems" && (
+            <div className="space-y-4">
+              {sectionDraft.projectOverview.workItems.map((item, i) => (
+                <div key={i} className="border border-gray-200 rounded-lg p-4 space-y-3">
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-semibold text-gray-500">工作要項 {['一','二','三','四','五','六','七','八'][i]}</span>
+                    <button
+                      onClick={() => setSectionDraft(d => {
+                        if (!d) return d
+                        const workItems = d.projectOverview.workItems.filter((_, j) => j !== i)
+                        return { ...d, projectOverview: { ...d.projectOverview, workItems } }
+                      })}
+                      className="text-xs text-red-400 hover:text-red-600"
+                    >移除</button>
+                  </div>
+                  <div>{label("標題")}{inp(item.title, v => setSectionDraft(d => {
+                    if (!d) return d
+                    const workItems = [...d.projectOverview.workItems]
+                    workItems[i] = { ...workItems[i], title: v }
+                    return { ...d, projectOverview: { ...d.projectOverview, workItems } }
+                  }))}</div>
+                  <div>{label("說明")}{ta(item.content, v => setSectionDraft(d => {
+                    if (!d) return d
+                    const workItems = [...d.projectOverview.workItems]
+                    workItems[i] = { ...workItems[i], content: v }
+                    return { ...d, projectOverview: { ...d.projectOverview, workItems } }
+                  }), 3)}</div>
+                </div>
+              ))}
+              <button
+                onClick={() => setSectionDraft(d => {
+                  if (!d) return d
+                  const workItems = [...d.projectOverview.workItems, { title: "", content: "" }]
+                  return { ...d, projectOverview: { ...d.projectOverview, workItems } }
+                })}
+                className="text-xs text-amber-600 border border-amber-300 rounded px-3 py-1 hover:bg-amber-50"
+              >+ 新增工作要項</button>
+            </div>
+          )}
+
+          {editingSection === "hrPlan" && (
+            <div>{label("人力配置說明")}{ta(sectionDraft.hrPlan.teamStructure, v => setSectionDraft(d => d ? { ...d, hrPlan: { ...d.hrPlan, teamStructure: v } } : d), 6)}</div>
+          )}
+
+          {editingSection === "quality" && (
+            <div>{label("品質保證管理說明")}{ta(sectionDraft.hrPlan.qualityManagement, v => setSectionDraft(d => d ? { ...d, hrPlan: { ...d.hrPlan, qualityManagement: v } } : d), 6)}</div>
+          )}
+
+          {editingSection === "company" && (
+            <>
+              <div className="grid grid-cols-3 gap-4">
+                <div>{label("成立時間")}{inp(sectionDraft.companyProfile.established, v => setSectionDraft(d => d ? { ...d, companyProfile: { ...d.companyProfile, established: v } } : d))}</div>
+                <div>{label("資本額")}{inp(sectionDraft.companyProfile.capital, v => setSectionDraft(d => d ? { ...d, companyProfile: { ...d.companyProfile, capital: v } } : d))}</div>
+                <div>{label("員工人數")}{inp(sectionDraft.companyProfile.employees, v => setSectionDraft(d => d ? { ...d, companyProfile: { ...d.companyProfile, employees: v } } : d))}</div>
+              </div>
+              <div>{label("公司介紹")}{ta(sectionDraft.companyProfile.introduction, v => setSectionDraft(d => d ? { ...d, companyProfile: { ...d.companyProfile, introduction: v } } : d), 4)}</div>
+              <div className="space-y-3">
+                {label("履約實績")}
+                {sectionDraft.companyProfile.experiences.map((exp, i) => (
+                  <div key={i} className="border border-gray-200 rounded-lg p-3 grid grid-cols-2 gap-3">
+                    <div>{label("機關/客戶")}{inp(exp.client, v => setSectionDraft(d => {
+                      if (!d) return d
+                      const experiences = [...d.companyProfile.experiences]
+                      experiences[i] = { ...experiences[i], client: v }
+                      return { ...d, companyProfile: { ...d.companyProfile, experiences } }
+                    }))}</div>
+                    <div>{label("專案名稱")}{inp(exp.project, v => setSectionDraft(d => {
+                      if (!d) return d
+                      const experiences = [...d.companyProfile.experiences]
+                      experiences[i] = { ...experiences[i], project: v }
+                      return { ...d, companyProfile: { ...d.companyProfile, experiences } }
+                    }))}</div>
+                    <div>{label("執行期間")}{inp(exp.period, v => setSectionDraft(d => {
+                      if (!d) return d
+                      const experiences = [...d.companyProfile.experiences]
+                      experiences[i] = { ...experiences[i], period: v }
+                      return { ...d, companyProfile: { ...d.companyProfile, experiences } }
+                    }))}</div>
+                    <div className="flex gap-2 items-end">
+                      <div className="flex-1">{label("合約金額")}{inp(exp.amount, v => setSectionDraft(d => {
+                        if (!d) return d
+                        const experiences = [...d.companyProfile.experiences]
+                        experiences[i] = { ...experiences[i], amount: v }
+                        return { ...d, companyProfile: { ...d.companyProfile, experiences } }
+                      }))}</div>
+                      <button
+                        onClick={() => setSectionDraft(d => {
+                          if (!d) return d
+                          const experiences = d.companyProfile.experiences.filter((_, j) => j !== i)
+                          return { ...d, companyProfile: { ...d.companyProfile, experiences } }
+                        })}
+                        className="text-xs text-red-400 hover:text-red-600 h-9 px-2 border border-red-200 rounded shrink-0"
+                      >刪</button>
+                    </div>
+                  </div>
+                ))}
+                <button
+                  onClick={() => setSectionDraft(d => {
+                    if (!d) return d
+                    const experiences = [...d.companyProfile.experiences, { client: "", project: "", period: "", amount: "" }]
+                    return { ...d, companyProfile: { ...d.companyProfile, experiences } }
+                  })}
+                  className="text-xs text-amber-600 border border-amber-300 rounded px-3 py-1 hover:bg-amber-50"
+                >+ 新增實績</button>
+              </div>
+            </>
+          )}
+
+          {editingSection === "pricing" && (
+            <>
+              <div>{label("計費說明")}{ta(sectionDraft.pricing.basis, v => setSectionDraft(d => d ? { ...d, pricing: { ...d.pricing, basis: v } } : d), 3)}</div>
+              <div className="space-y-3">
+                {label("報價明細")}
+                {sectionDraft.pricing.items.map((item, i) => (
+                  <div key={i} className="border border-gray-200 rounded-lg p-3 space-y-2">
+                    <div className="flex items-center justify-between">
+                      <span className="text-xs font-semibold text-gray-500">第 {i + 1} 項</span>
+                      <button
+                        onClick={() => setSectionDraft(d => {
+                          if (!d) return d
+                          const items = d.pricing.items.filter((_, j) => j !== i)
+                          return { ...d, pricing: { ...d.pricing, items } }
+                        })}
+                        className="text-xs text-red-400 hover:text-red-600"
+                      >移除</button>
+                    </div>
+                    <div>{label("項目名稱")}{inp(item.item, v => setSectionDraft(d => {
+                      if (!d) return d
+                      const items = [...d.pricing.items]
+                      items[i] = { ...items[i], item: v }
+                      return { ...d, pricing: { ...d.pricing, items } }
+                    }))}</div>
+                    <div className="grid grid-cols-4 gap-2">
+                      <div>{label("單位")}{inp(item.unit, v => setSectionDraft(d => {
+                        if (!d) return d
+                        const items = [...d.pricing.items]
+                        items[i] = { ...items[i], unit: v }
+                        return { ...d, pricing: { ...d.pricing, items } }
+                      }))}</div>
+                      <div>{label("數量")}{inp(String(item.quantity), v => setSectionDraft(d => {
+                        if (!d) return d
+                        const items = [...d.pricing.items]
+                        items[i] = { ...items[i], quantity: Number(v) || 0 }
+                        return { ...d, pricing: { ...d.pricing, items } }
+                      }))}</div>
+                      <div>{label("單價")}{inp(item.unitPrice, v => setSectionDraft(d => {
+                        if (!d) return d
+                        const items = [...d.pricing.items]
+                        items[i] = { ...items[i], unitPrice: v }
+                        return { ...d, pricing: { ...d.pricing, items } }
+                      }))}</div>
+                      <div>{label("小計")}{inp(item.subtotal, v => setSectionDraft(d => {
+                        if (!d) return d
+                        const items = [...d.pricing.items]
+                        items[i] = { ...items[i], subtotal: v }
+                        return { ...d, pricing: { ...d.pricing, items } }
+                      }))}</div>
+                    </div>
+                  </div>
+                ))}
+                <button
+                  onClick={() => setSectionDraft(d => {
+                    if (!d) return d
+                    const items = [...d.pricing.items, { item: "", unit: "式", quantity: 1, unitPrice: "NT$0", subtotal: "NT$0" }]
+                    return { ...d, pricing: { ...d.pricing, items } }
+                  })}
+                  className="text-xs text-amber-600 border border-amber-300 rounded px-3 py-1 hover:bg-amber-50"
+                >+ 新增項目</button>
+              </div>
+              <div>{label("總報價金額")}{inp(sectionDraft.pricing.totalAmount, v => setSectionDraft(d => d ? { ...d, pricing: { ...d.pricing, totalAmount: v } } : d), "NT$0")}</div>
+            </>
+          )}
+
+        </div>
+
+        {/* footer */}
+        <div className="px-6 py-4 border-t flex justify-end gap-2 shrink-0">
+          <button onClick={handleEditCancel} className="text-sm px-4 py-1.5 border border-gray-300 rounded text-gray-600 hover:bg-gray-50 transition">取消</button>
+          <button onClick={handleEditConfirm} className="text-sm px-4 py-1.5 bg-amber-500 hover:bg-amber-600 text-white rounded transition">確認</button>
+        </div>
+      </div>
+    </div>
+  ) : null
+
   /* ══════════════════════════════════════════════════════════════
      PHASE: result
   ══════════════════════════════════════════════════════════════ */
   return (
     <>
+      {SectionModal}
       {DraftsPanel}
       <div className="p-6 max-w-4xl mx-auto space-y-6 pb-16">
         <button
@@ -436,16 +759,6 @@ export default function GenerateFromTemplatePage({
                 )}
               </div>
               <div className="flex items-center gap-2 flex-wrap">
-                <button
-                  onClick={() => setEditPanelOpen((v) => !v)}
-                  className={`text-sm px-3 py-1.5 rounded-md border transition-colors ${
-                    editPanelOpen
-                      ? "bg-amber-500 text-white border-amber-500"
-                      : "bg-white text-gray-700 border-gray-300 hover:bg-gray-50"
-                  }`}
-                >
-                  {editPanelOpen ? "收起編輯" : "編輯內容"}
-                </button>
                 <button
                   onClick={() => setEditMode((v) => !v)}
                   className={`text-sm px-3 py-1.5 rounded-md border transition-colors ${
@@ -507,153 +820,6 @@ export default function GenerateFromTemplatePage({
               </div>
             )}
 
-            {/* ── 欄位式編輯面板 ─────────────────────────────────────────── */}
-            {editPanelOpen && proposalData && (
-              <div className="px-6 py-5 border-b bg-amber-50 space-y-6">
-                <p className="text-sm font-semibold text-amber-800">編輯生成內容 — 修改後即時同步至下方預覽</p>
-
-                {/* 服務範圍 */}
-                <div className="space-y-1.5">
-                  <label className="text-xs font-semibold text-gray-500 uppercase tracking-wide">服務範圍</label>
-                  <textarea
-                    value={proposalData.projectOverview.scope}
-                    onChange={e => setProposalData(prev => prev ? {
-                      ...prev,
-                      projectOverview: { ...prev.projectOverview, scope: e.target.value },
-                    } : prev)}
-                    rows={3}
-                    className="w-full rounded border border-gray-200 bg-white px-3 py-2 text-sm resize-y focus:outline-none focus:ring-2 focus:ring-amber-400"
-                  />
-                </div>
-
-                {/* 工作要項 */}
-                <div className="space-y-2">
-                  <label className="text-xs font-semibold text-gray-500 uppercase tracking-wide">工作要項</label>
-                  {proposalData.projectOverview.workItems.map((item, i) => (
-                    <div key={i} className="flex gap-2 items-start">
-                      <input
-                        value={item.title}
-                        onChange={e => setProposalData(prev => {
-                          if (!prev) return prev
-                          const workItems = [...prev.projectOverview.workItems]
-                          workItems[i] = { ...workItems[i], title: e.target.value }
-                          return { ...prev, projectOverview: { ...prev.projectOverview, workItems } }
-                        })}
-                        placeholder="標題"
-                        className="w-32 h-9 rounded border border-gray-200 bg-white px-2 text-sm focus:outline-none focus:ring-2 focus:ring-amber-400 shrink-0"
-                      />
-                      <textarea
-                        value={item.content}
-                        onChange={e => setProposalData(prev => {
-                          if (!prev) return prev
-                          const workItems = [...prev.projectOverview.workItems]
-                          workItems[i] = { ...workItems[i], content: e.target.value }
-                          return { ...prev, projectOverview: { ...prev.projectOverview, workItems } }
-                        })}
-                        rows={2}
-                        className="flex-1 rounded border border-gray-200 bg-white px-3 py-2 text-sm resize-none focus:outline-none focus:ring-2 focus:ring-amber-400"
-                      />
-                    </div>
-                  ))}
-                </div>
-
-                {/* 摘要特點 */}
-                <div className="space-y-3">
-                  <label className="text-xs font-semibold text-gray-500 uppercase tracking-wide">摘要特點</label>
-                  {proposalData.summary.map((s, i) => (
-                    <div key={i} className="space-y-1">
-                      <p className="text-xs text-gray-500">{s.category}</p>
-                      <textarea
-                        value={s.content}
-                        onChange={e => setProposalData(prev => {
-                          if (!prev) return prev
-                          const summary = [...prev.summary]
-                          summary[i] = { ...summary[i], content: e.target.value }
-                          return { ...prev, summary }
-                        })}
-                        rows={2}
-                        className="w-full rounded border border-gray-200 bg-white px-3 py-2 text-sm resize-none focus:outline-none focus:ring-2 focus:ring-amber-400"
-                      />
-                    </div>
-                  ))}
-                </div>
-
-                {/* 人力配置 & 品質管理 */}
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="space-y-1.5">
-                    <label className="text-xs font-semibold text-gray-500 uppercase tracking-wide">人力配置說明</label>
-                    <textarea
-                      value={proposalData.hrPlan.teamStructure}
-                      onChange={e => setProposalData(prev => prev ? {
-                        ...prev, hrPlan: { ...prev.hrPlan, teamStructure: e.target.value },
-                      } : prev)}
-                      rows={4}
-                      className="w-full rounded border border-gray-200 bg-white px-3 py-2 text-sm resize-none focus:outline-none focus:ring-2 focus:ring-amber-400"
-                    />
-                  </div>
-                  <div className="space-y-1.5">
-                    <label className="text-xs font-semibold text-gray-500 uppercase tracking-wide">品質管理說明</label>
-                    <textarea
-                      value={proposalData.hrPlan.qualityManagement}
-                      onChange={e => setProposalData(prev => prev ? {
-                        ...prev, hrPlan: { ...prev.hrPlan, qualityManagement: e.target.value },
-                      } : prev)}
-                      rows={4}
-                      className="w-full rounded border border-gray-200 bg-white px-3 py-2 text-sm resize-none focus:outline-none focus:ring-2 focus:ring-amber-400"
-                    />
-                  </div>
-                </div>
-
-                {/* 公司簡介 */}
-                <div className="space-y-1.5">
-                  <label className="text-xs font-semibold text-gray-500 uppercase tracking-wide">公司簡介</label>
-                  <textarea
-                    value={proposalData.companyProfile.introduction}
-                    onChange={e => setProposalData(prev => prev ? {
-                      ...prev, companyProfile: { ...prev.companyProfile, introduction: e.target.value },
-                    } : prev)}
-                    rows={3}
-                    className="w-full rounded border border-gray-200 bg-white px-3 py-2 text-sm resize-y focus:outline-none focus:ring-2 focus:ring-amber-400"
-                  />
-                </div>
-
-                {/* 報價說明 & 總金額 */}
-                <div className="grid grid-cols-2 gap-4 items-start">
-                  <div className="space-y-1.5">
-                    <label className="text-xs font-semibold text-gray-500 uppercase tracking-wide">報價說明</label>
-                    <textarea
-                      value={proposalData.pricing.basis}
-                      onChange={e => setProposalData(prev => prev ? {
-                        ...prev, pricing: { ...prev.pricing, basis: e.target.value },
-                      } : prev)}
-                      rows={3}
-                      className="w-full rounded border border-gray-200 bg-white px-3 py-2 text-sm resize-none focus:outline-none focus:ring-2 focus:ring-amber-400"
-                    />
-                  </div>
-                  <div className="space-y-1.5">
-                    <label className="text-xs font-semibold text-gray-500 uppercase tracking-wide">總報價金額</label>
-                    <input
-                      value={proposalData.pricing.totalAmount}
-                      onChange={e => setProposalData(prev => prev ? {
-                        ...prev, pricing: { ...prev.pricing, totalAmount: e.target.value },
-                      } : prev)}
-                      placeholder="NT$0"
-                      className="w-full h-9 rounded border border-gray-200 bg-white px-3 text-sm focus:outline-none focus:ring-2 focus:ring-amber-400"
-                    />
-                  </div>
-                </div>
-
-                <div className="flex justify-end">
-                  <button
-                    onClick={() => setEditPanelOpen(false)}
-                    className="text-sm px-4 py-1.5 bg-amber-500 hover:bg-amber-600 text-white rounded transition"
-                  >
-                    收起編輯
-                  </button>
-                </div>
-              </div>
-            )}
-
             <div id="proposal-pdf-target" className="p-6">
               <ProposalDocument
                 data={proposalData}
@@ -662,6 +828,7 @@ export default function GenerateFromTemplatePage({
                 onImageInsert={handleImageInsert}
                 onImageRemove={handleImageRemove}
                 onImageUpdate={handleImageUpdate}
+                onSectionEdit={handleSectionEdit}
               />
             </div>
           </div>
