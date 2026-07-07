@@ -67,6 +67,9 @@ export default function GenerateFromTemplatePage({
   const [drafts, setDrafts] = useState<DraftEntry[]>([])
   const [panelOpen, setPanelOpen] = useState(false)
 
+  /* edit panel */
+  const [editPanelOpen, setEditPanelOpen] = useState(false)
+
   const previewRef = useRef<HTMLDivElement>(null)
 
   /* ── resolve params → find template ──────────────────────────── */
@@ -434,6 +437,16 @@ export default function GenerateFromTemplatePage({
               </div>
               <div className="flex items-center gap-2 flex-wrap">
                 <button
+                  onClick={() => setEditPanelOpen((v) => !v)}
+                  className={`text-sm px-3 py-1.5 rounded-md border transition-colors ${
+                    editPanelOpen
+                      ? "bg-amber-500 text-white border-amber-500"
+                      : "bg-white text-gray-700 border-gray-300 hover:bg-gray-50"
+                  }`}
+                >
+                  {editPanelOpen ? "收起編輯" : "編輯內容"}
+                </button>
+                <button
                   onClick={() => setEditMode((v) => !v)}
                   className={`text-sm px-3 py-1.5 rounded-md border transition-colors ${
                     editMode
@@ -491,6 +504,153 @@ export default function GenerateFromTemplatePage({
             {editMode && (
               <div className="px-6 py-3 bg-blue-50 border-b text-sm text-blue-700">
                 圖片插入模式：捲動至各章節，點擊「+ 插入圖片」即可上傳。
+              </div>
+            )}
+
+            {/* ── 欄位式編輯面板 ─────────────────────────────────────────── */}
+            {editPanelOpen && proposalData && (
+              <div className="px-6 py-5 border-b bg-amber-50 space-y-6">
+                <p className="text-sm font-semibold text-amber-800">編輯生成內容 — 修改後即時同步至下方預覽</p>
+
+                {/* 服務範圍 */}
+                <div className="space-y-1.5">
+                  <label className="text-xs font-semibold text-gray-500 uppercase tracking-wide">服務範圍</label>
+                  <textarea
+                    value={proposalData.projectOverview.scope}
+                    onChange={e => setProposalData(prev => prev ? {
+                      ...prev,
+                      projectOverview: { ...prev.projectOverview, scope: e.target.value },
+                    } : prev)}
+                    rows={3}
+                    className="w-full rounded border border-gray-200 bg-white px-3 py-2 text-sm resize-y focus:outline-none focus:ring-2 focus:ring-amber-400"
+                  />
+                </div>
+
+                {/* 工作要項 */}
+                <div className="space-y-2">
+                  <label className="text-xs font-semibold text-gray-500 uppercase tracking-wide">工作要項</label>
+                  {proposalData.projectOverview.workItems.map((item, i) => (
+                    <div key={i} className="flex gap-2 items-start">
+                      <input
+                        value={item.title}
+                        onChange={e => setProposalData(prev => {
+                          if (!prev) return prev
+                          const workItems = [...prev.projectOverview.workItems]
+                          workItems[i] = { ...workItems[i], title: e.target.value }
+                          return { ...prev, projectOverview: { ...prev.projectOverview, workItems } }
+                        })}
+                        placeholder="標題"
+                        className="w-32 h-9 rounded border border-gray-200 bg-white px-2 text-sm focus:outline-none focus:ring-2 focus:ring-amber-400 shrink-0"
+                      />
+                      <textarea
+                        value={item.content}
+                        onChange={e => setProposalData(prev => {
+                          if (!prev) return prev
+                          const workItems = [...prev.projectOverview.workItems]
+                          workItems[i] = { ...workItems[i], content: e.target.value }
+                          return { ...prev, projectOverview: { ...prev.projectOverview, workItems } }
+                        })}
+                        rows={2}
+                        className="flex-1 rounded border border-gray-200 bg-white px-3 py-2 text-sm resize-none focus:outline-none focus:ring-2 focus:ring-amber-400"
+                      />
+                    </div>
+                  ))}
+                </div>
+
+                {/* 摘要特點 */}
+                <div className="space-y-3">
+                  <label className="text-xs font-semibold text-gray-500 uppercase tracking-wide">摘要特點</label>
+                  {proposalData.summary.map((s, i) => (
+                    <div key={i} className="space-y-1">
+                      <p className="text-xs text-gray-500">{s.category}</p>
+                      <textarea
+                        value={s.content}
+                        onChange={e => setProposalData(prev => {
+                          if (!prev) return prev
+                          const summary = [...prev.summary]
+                          summary[i] = { ...summary[i], content: e.target.value }
+                          return { ...prev, summary }
+                        })}
+                        rows={2}
+                        className="w-full rounded border border-gray-200 bg-white px-3 py-2 text-sm resize-none focus:outline-none focus:ring-2 focus:ring-amber-400"
+                      />
+                    </div>
+                  ))}
+                </div>
+
+                {/* 人力配置 & 品質管理 */}
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-1.5">
+                    <label className="text-xs font-semibold text-gray-500 uppercase tracking-wide">人力配置說明</label>
+                    <textarea
+                      value={proposalData.hrPlan.teamStructure}
+                      onChange={e => setProposalData(prev => prev ? {
+                        ...prev, hrPlan: { ...prev.hrPlan, teamStructure: e.target.value },
+                      } : prev)}
+                      rows={4}
+                      className="w-full rounded border border-gray-200 bg-white px-3 py-2 text-sm resize-none focus:outline-none focus:ring-2 focus:ring-amber-400"
+                    />
+                  </div>
+                  <div className="space-y-1.5">
+                    <label className="text-xs font-semibold text-gray-500 uppercase tracking-wide">品質管理說明</label>
+                    <textarea
+                      value={proposalData.hrPlan.qualityManagement}
+                      onChange={e => setProposalData(prev => prev ? {
+                        ...prev, hrPlan: { ...prev.hrPlan, qualityManagement: e.target.value },
+                      } : prev)}
+                      rows={4}
+                      className="w-full rounded border border-gray-200 bg-white px-3 py-2 text-sm resize-none focus:outline-none focus:ring-2 focus:ring-amber-400"
+                    />
+                  </div>
+                </div>
+
+                {/* 公司簡介 */}
+                <div className="space-y-1.5">
+                  <label className="text-xs font-semibold text-gray-500 uppercase tracking-wide">公司簡介</label>
+                  <textarea
+                    value={proposalData.companyProfile.introduction}
+                    onChange={e => setProposalData(prev => prev ? {
+                      ...prev, companyProfile: { ...prev.companyProfile, introduction: e.target.value },
+                    } : prev)}
+                    rows={3}
+                    className="w-full rounded border border-gray-200 bg-white px-3 py-2 text-sm resize-y focus:outline-none focus:ring-2 focus:ring-amber-400"
+                  />
+                </div>
+
+                {/* 報價說明 & 總金額 */}
+                <div className="grid grid-cols-2 gap-4 items-start">
+                  <div className="space-y-1.5">
+                    <label className="text-xs font-semibold text-gray-500 uppercase tracking-wide">報價說明</label>
+                    <textarea
+                      value={proposalData.pricing.basis}
+                      onChange={e => setProposalData(prev => prev ? {
+                        ...prev, pricing: { ...prev.pricing, basis: e.target.value },
+                      } : prev)}
+                      rows={3}
+                      className="w-full rounded border border-gray-200 bg-white px-3 py-2 text-sm resize-none focus:outline-none focus:ring-2 focus:ring-amber-400"
+                    />
+                  </div>
+                  <div className="space-y-1.5">
+                    <label className="text-xs font-semibold text-gray-500 uppercase tracking-wide">總報價金額</label>
+                    <input
+                      value={proposalData.pricing.totalAmount}
+                      onChange={e => setProposalData(prev => prev ? {
+                        ...prev, pricing: { ...prev.pricing, totalAmount: e.target.value },
+                      } : prev)}
+                      placeholder="NT$0"
+                      className="w-full h-9 rounded border border-gray-200 bg-white px-3 text-sm focus:outline-none focus:ring-2 focus:ring-amber-400"
+                    />
+                  </div>
+                </div>
+
+                <div className="flex justify-end">
+                  <button
+                    onClick={() => setEditPanelOpen(false)}
+                    className="text-sm px-4 py-1.5 bg-amber-500 hover:bg-amber-600 text-white rounded transition"
+                  >
+                    收起編輯
+                  </button>
+                </div>
               </div>
             )}
 
