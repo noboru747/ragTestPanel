@@ -2,120 +2,23 @@
 
 import { useEffect, useRef, useState } from "react"
 import { useRouter } from "next/navigation"
+import { BUILT_TEMPLATES } from "@/lib/built-templates"
+import ProposalDocument, {
+  type ProposalData,
+  type InsertedImage,
+} from "@/components/proposal/ProposalDocument"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
-import { Input } from "@/components/ui/input"
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogFooter,
-} from "@/components/ui/dialog"
-import {
-  ArrowLeft,
-  FileText,
-  ImagePlus,
-  Loader2,
-  Printer,
-  Sparkles,
-  X,
-} from "lucide-react"
+import { ArrowLeft, Loader2, Sparkles } from "lucide-react"
 
 /* ─── types ────────────────────────────────────────────────────── */
-
-type FieldType = "text" | "number" | "date" | "textarea"
-
-type TemplateField = {
-  key: string
-  label: string
-  type: FieldType
-}
-
-type Template = {
-  id: string
-  name: string
-  fields: TemplateField[]
-}
 
 type Project = {
   id: string
   name: string
 }
 
-type Section = {
-  title: string
-  content: string
-  images: string[] // data-URL base64
-}
-
-type GenerateResult = {
-  template_name: string
-  content: string
-  sources?: string[]
-}
-
-type Phase = "form" | "generating" | "result"
-
-/* ─── helpers ──────────────────────────────────────────────────── */
-
-/** Split content string by "## " headings into sections. */
-function parseSections(content: string): Omit<Section, "images">[] {
-  // Normalise line endings
-  const text = content.replace(/\r\n/g, "\n")
-  // Split at every line that starts with "## "
-  const chunks = text.split(/\n(?=## )/)
-  return chunks
-    .map((chunk) => {
-      const lines = chunk.split("\n")
-      const firstLine = lines[0].trimEnd()
-      const title = firstLine.startsWith("## ")
-        ? firstLine.slice(3).trim()
-        : firstLine.trim()
-      const body = lines.slice(1).join("\n").trim()
-      return { title, content: body }
-    })
-    .filter((s) => s.title)
-}
-
-/* ─── print styles injected at runtime ────────────────────────── */
-const PRINT_CSS = `
-@media print {
-  /* Hide sidebar and chrome */
-  aside,
-  nav,
-  [data-print-hide],
-  .print-hide {
-    display: none !important;
-  }
-  /* Expand main to full width */
-  main {
-    overflow: visible !important;
-  }
-  body, html {
-    height: auto !important;
-    overflow: visible !important;
-  }
-  /* Section cards: avoid mid-card page breaks */
-  [data-section-card] {
-    break-inside: avoid;
-    page-break-inside: avoid;
-    border: 1px solid #ccc !important;
-    box-shadow: none !important;
-    margin-bottom: 24px;
-  }
-  /* Images stay with their section */
-  [data-section-card] img {
-    max-width: 100%;
-    break-before: avoid;
-    page-break-before: avoid;
-  }
-  /* Toolbar always hidden */
-  [data-toolbar] {
-    display: none !important;
-  }
-}
-`
+type Phase = "form" | "loading" | "result"
 
 /* ─── page ─────────────────────────────────────────────────────── */
 
@@ -126,59 +29,46 @@ export default function GenerateFromTemplatePage({
 }) {
   const router = useRouter()
 
-  /* resolved params */
-  const [templateId, setTemplateId] = useState<string | null>(null)
+  /* template */
+  const [template, setTemplate] = useState<(typeof BUILT_TEMPLATES)[0] | null>(null)
 
-  /* data */
-  const [template, setTemplate] = useState<Template | null>(null)
+  /* projects */
   const [projects, setProjects] = useState<Project[]>([])
-  const [loadError, setLoadError] = useState("")
-
-  /* form state */
   const [projectId, setProjectId] = useState("")
-  const [fieldValues, setFieldValues] = useState<Record<string, string>>({})
 
-  /* generation */
+  /* form */
+  const [form, setForm] = useState<Record<string, string>>({})
+
+  /* phase & result */
   const [phase, setPhase] = useState<Phase>("form")
-  const [genError, setGenError] = useState("")
-  const [sections, setSections] = useState<Section[]>([])
+  const [proposalData, setProposalData] = useState<ProposalData | null>(null)
+  const [plainContent, setPlainContent] = useState<string>("")
 
-  /* PDF dialog */
-  const [pdfDialogOpen, setPdfDialogOpen] = useState(false)
+  /* image / edit mode */
+  const [images, setImages] = useState<InsertedImage[]>([])
+  const [editMode, setEditMode] = useState(false)
 
-  /* hidden file-input refs (one per section, allocated lazily) */
-  const fileInputRefs = useRef<Array<HTMLInputElement | null>>([])
+  /* error & pdf loading */
+  const [error, setError] = useState<string | null>(null)
+  const [pdfLoading, setPdfLoading] = useState<"preview" | "download" | null>(null)
 
-  /* ── inject print CSS once ─────────────────────────────────── */
+  const previewRef = useRef<HTMLDivElement>(null)
+
+  /* ── resolve params → find template ──────────────────────────── */
   useEffect(() => {
-    const el = document.createElement("style")
-    el.textContent = PRINT_CSS
-    document.head.appendChild(el)
-    return () => { document.head.removeChild(el) }
-  }, [])
-
-  /* ── resolve params ────────────────────────────────────────── */
-  useEffect(() => {
-    params.then(({ templateId }) => setTemplateId(templateId))
+    params.then(({ templateId }) => {
+      const found = BUILT_TEMPLATES.find((t) => t.id === templateId) ?? null
+      setTemplate(found)
+      if (found) {
+        const init: Record<string, string> = {}
+        found.fields.forEach((f) => { init[f] = "" })
+        setForm(init)
+      }
+    })
   }, [params])
 
-  /* ── load template + projects ──────────────────────────────── */
+  /* ── load projects ────────────────────────────────────────────── */
   useEffect(() => {
-    if (!templateId) return
-
-    fetch(`/api/templates/${templateId}`)
-      .then((r) => r.json())
-      .then((d) => {
-        const t: Template = d.template ?? d
-        if (!t?.id) throw new Error("模板不存在")
-        setTemplate(t)
-        // pre-fill field values with empty strings
-        const init: Record<string, string> = {}
-        t.fields.forEach((f) => { init[f.key] = "" })
-        setFieldValues(init)
-      })
-      .catch(() => setLoadError("無法載入模板，請確認後端服務是否運行"))
-
     fetch("/api/projects")
       .then((r) => r.json())
       .then((d) => {
@@ -187,122 +77,119 @@ export default function GenerateFromTemplatePage({
         if (list.length > 0) setProjectId(list[0].id)
       })
       .catch(() => {})
-  }, [templateId])
+  }, [])
 
-  /* ── generate ──────────────────────────────────────────────── */
+  /* ── generate ─────────────────────────────────────────────────── */
   const handleGenerate = async () => {
-    if (!template) return
-    if (!projectId) {
-      setGenError("請先選擇專案")
-      return
+    if (!projectId) { setError("請先選擇專案"); return }
+    setPhase("loading")
+    setError(null)
+
+    const res = await fetch("/api/generate/from-template", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        template_id: template!.id,
+        project_id: projectId,
+        fields: form,
+      }),
+    })
+
+    const data = await res.json()
+
+    if (data.proposal_data) {
+      setProposalData(data.proposal_data)
+      setPlainContent("")
+    } else {
+      setPlainContent(data.content ?? "")
+      setProposalData(null)
     }
-    setPhase("generating")
-    setGenError("")
+
+    setPhase("result")
+    setTimeout(() => previewRef.current?.scrollIntoView({ behavior: "smooth" }), 100)
+  }
+
+  /* ── PDF helpers ──────────────────────────────────────────────── */
+  const getPdfOptions = () => ({
+    margin: [20, 25, 20, 25],
+    image: { type: "jpeg" as const, quality: 0.97 },
+    html2canvas: { scale: 2, useCORS: true, logging: false },
+    jsPDF: { unit: "mm" as const, format: "a4" as const, orientation: "portrait" as const },
+  })
+
+  const handlePreviewPDF = async () => {
+    const el = document.getElementById("proposal-pdf-target")
+    if (!el) return
+    setPdfLoading("preview")
+    const wasEditing = editMode
+    if (wasEditing) setEditMode(false)
+    await new Promise((r) => setTimeout(r, 50))
     try {
-      const res = await fetch("/api/generate/from-template", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          template_id: template.id,
-          project_id: projectId,
-          fields: fieldValues,
-        }),
-      })
-      if (!res.ok) {
-        const d = await res.json()
-        throw new Error(d.error ?? "生成失敗")
-      }
-      const data: GenerateResult = await res.json()
-      const parsed = parseSections(data.content).map((s) => ({ ...s, images: [] }))
-      setSections(parsed)
-      setPhase("result")
-    } catch (e) {
-      setGenError(e instanceof Error ? e.message : "生成失敗")
-      setPhase("form")
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const html2pdf = ((await import("html2pdf.js")) as any).default
+      const blob: Blob = await html2pdf().set(getPdfOptions()).from(el).outputPdf("blob")
+      const url = URL.createObjectURL(blob)
+      window.open(url, "_blank")
+    } finally {
+      if (wasEditing) setEditMode(true)
+      setPdfLoading(null)
     }
   }
 
-  /* ── image handling ────────────────────────────────────────── */
-  const triggerImagePick = (idx: number) => {
-    fileInputRefs.current[idx]?.click()
+  const handleDownloadPDF = async () => {
+    const el = document.getElementById("proposal-pdf-target")
+    if (!el) return
+    setPdfLoading("download")
+    const wasEditing = editMode
+    if (wasEditing) setEditMode(false)
+    await new Promise((r) => setTimeout(r, 50))
+    try {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const html2pdf = ((await import("html2pdf.js")) as any).default
+      const filename = `建議書_${form["案號"] || "draft"}_${new Date().toLocaleDateString("zh-TW").replace(/\//g, "")}.pdf`
+      await html2pdf().set({ ...getPdfOptions(), filename }).from(el).save()
+    } finally {
+      if (wasEditing) setEditMode(true)
+      setPdfLoading(null)
+    }
   }
 
-  const handleFileChange = (idx: number, file: File | undefined) => {
-    if (!file) return
+  /* ── image handlers ───────────────────────────────────────────── */
+  const handleImageInsert = (slotId: string, file: File) => {
     const reader = new FileReader()
     reader.onload = (e) => {
-      const dataUrl = e.target?.result as string
-      setSections((prev) =>
-        prev.map((s, i) =>
-          i === idx ? { ...s, images: [...s.images, dataUrl] } : s
-        )
-      )
+      const src = e.target?.result as string
+      setImages((prev) => [...prev, { id: slotId, src, width: "100%", align: "center" }])
     }
     reader.readAsDataURL(file)
   }
 
-  const removeImage = (sectionIdx: number, imgIdx: number) => {
-    setSections((prev) =>
-      prev.map((s, i) =>
-        i === sectionIdx
-          ? { ...s, images: s.images.filter((_, j) => j !== imgIdx) }
-          : s
-      )
-    )
+  const handleImageRemove = (slotId: string, idx: number) => {
+    setImages((prev) => {
+      const slotIndices = prev.reduce<number[]>((acc, img, i) => {
+        if (img.id === slotId) acc.push(i)
+        return acc
+      }, [])
+      const target = slotIndices[idx]
+      if (target === undefined) return prev
+      return prev.filter((_, i) => i !== target)
+    })
   }
 
-  /* ── print / PDF ────────────────────────────────────────────── */
-  const handlePrint = () => {
-    window.print()
+  const handleImageUpdate = (slotId: string, idx: number, updates: Partial<InsertedImage>) => {
+    setImages((prev) => {
+      const result = [...prev]
+      const slotIndices = prev.reduce<number[]>((acc, img, i) => {
+        if (img.id === slotId) acc.push(i)
+        return acc
+      }, [])
+      const target = slotIndices[idx]
+      if (target !== undefined) result[target] = { ...result[target], ...updates }
+      return result
+    })
   }
 
-  const handlePdfPreview = () => {
-    setPdfDialogOpen(true)
-  }
-
-  /* ── field input renderer ───────────────────────────────────── */
-  const renderField = (field: TemplateField) => {
-    const val = fieldValues[field.key] ?? ""
-    const onChange = (v: string) =>
-      setFieldValues((prev) => ({ ...prev, [field.key]: v }))
-
-    if (field.type === "textarea") {
-      return (
-        <textarea
-          key={field.key}
-          value={val}
-          onChange={(e) => onChange(e.target.value)}
-          rows={3}
-          placeholder={field.label}
-          className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm resize-none focus:outline-none focus:ring-2 focus:ring-ring"
-        />
-      )
-    }
-    return (
-      <Input
-        key={field.key}
-        type={field.type === "number" ? "number" : field.type === "date" ? "date" : "text"}
-        value={val}
-        onChange={(e) => onChange(e.target.value)}
-        placeholder={field.label}
-      />
-    )
-  }
-
-  /* ── loading / error state ─────────────────────────────────── */
-  if (loadError) {
-    return (
-      <div className="p-8 flex flex-col items-center gap-4 text-center">
-        <FileText className="h-12 w-12 text-muted-foreground opacity-40" />
-        <p className="text-sm text-destructive">{loadError}</p>
-        <Button variant="outline" onClick={() => router.back()}>
-          <ArrowLeft className="h-4 w-4 mr-2" />
-          返回
-        </Button>
-      </div>
-    )
-  }
-
+  /* ── loading state ────────────────────────────────────────────── */
   if (!template) {
     return (
       <div className="p-8 flex items-center gap-3 text-muted-foreground">
@@ -317,8 +204,7 @@ export default function GenerateFromTemplatePage({
   ══════════════════════════════════════════════════════════════ */
   if (phase === "form") {
     return (
-      <div className="p-6 max-w-2xl mx-auto space-y-6" data-print-hide>
-        {/* Back */}
+      <div className="p-6 max-w-2xl mx-auto space-y-6">
         <button
           onClick={() => router.back()}
           className="flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground transition-colors"
@@ -327,7 +213,6 @@ export default function GenerateFromTemplatePage({
           返回
         </button>
 
-        {/* Title */}
         <div>
           <h1 className="text-2xl font-bold">生成{template.name}</h1>
           <p className="text-muted-foreground text-sm mt-1">
@@ -362,17 +247,35 @@ export default function GenerateFromTemplatePage({
               <div className="space-y-4">
                 <p className="text-sm font-medium">填寫欄位</p>
                 {template.fields.map((field) => (
-                  <div key={field.key} className="space-y-1.5">
-                    <label className="text-sm text-muted-foreground">{field.label}</label>
-                    {renderField(field)}
+                  <div key={field} className="space-y-1.5">
+                    <label className="text-sm text-muted-foreground">{field}</label>
+                    {field === "需求重點" ? (
+                      <textarea
+                        value={form[field] ?? ""}
+                        onChange={(e) =>
+                          setForm((prev) => ({ ...prev, [field]: e.target.value }))
+                        }
+                        rows={3}
+                        placeholder={field}
+                        className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm resize-none focus:outline-none focus:ring-2 focus:ring-ring"
+                      />
+                    ) : (
+                      <input
+                        type="text"
+                        value={form[field] ?? ""}
+                        onChange={(e) =>
+                          setForm((prev) => ({ ...prev, [field]: e.target.value }))
+                        }
+                        placeholder={field}
+                        className="w-full h-10 rounded-md border border-input bg-background px-3 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
+                      />
+                    )}
                   </div>
                 ))}
               </div>
             )}
 
-            {genError && (
-              <p className="text-sm text-destructive">{genError}</p>
-            )}
+            {error && <p className="text-sm text-destructive">{error}</p>}
 
             <Button
               className="w-full gap-2"
@@ -389,11 +292,11 @@ export default function GenerateFromTemplatePage({
   }
 
   /* ══════════════════════════════════════════════════════════════
-     PHASE: generating
+     PHASE: loading
   ══════════════════════════════════════════════════════════════ */
-  if (phase === "generating") {
+  if (phase === "loading") {
     return (
-      <div className="flex flex-col items-center justify-center h-full gap-6 p-8" data-print-hide>
+      <div className="flex flex-col items-center justify-center h-full gap-6 p-8">
         <Loader2 className="h-12 w-12 text-primary animate-spin" />
         <div className="text-center space-y-1.5">
           <p className="font-semibold">正在根據專案文件生成{template.name}，請稍候...</p>
@@ -407,129 +310,114 @@ export default function GenerateFromTemplatePage({
      PHASE: result
   ══════════════════════════════════════════════════════════════ */
   return (
-    <>
-      {/* ── Toolbar ─────────────────────────────────────────────── */}
-      <div
-        data-toolbar
-        data-print-hide
-        className="sticky top-0 z-10 flex items-center justify-between border-b bg-background/95 backdrop-blur px-6 py-3 print:hidden"
+    <div className="p-6 max-w-4xl mx-auto space-y-6 pb-16">
+      <button
+        onClick={() => {
+          setPhase("form")
+          setProposalData(null)
+          setPlainContent("")
+          setImages([])
+          setEditMode(false)
+        }}
+        className="flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground transition-colors"
       >
-        <button
-          onClick={() => router.back()}
-          className="flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground transition-colors"
-        >
-          <ArrowLeft className="h-4 w-4" />
-          返回
-        </button>
-        <h2 className="font-semibold text-sm">{template.name}</h2>
-        <div className="flex items-center gap-2">
-          <Button variant="outline" size="sm" onClick={handlePdfPreview} className="gap-1.5">
-            <FileText className="h-4 w-4" />
-            預覽 PDF
-          </Button>
-          <Button variant="outline" size="sm" onClick={handlePrint} className="gap-1.5">
-            <Printer className="h-4 w-4" />
-            列印
-          </Button>
-        </div>
-      </div>
+        <ArrowLeft className="h-4 w-4" />
+        重新填寫
+      </button>
 
-      {/* ── Document body ────────────────────────────────────────── */}
-      <div className="p-6 max-w-4xl mx-auto space-y-6 pb-16">
-        {/* Document title */}
-        <h1 className="text-2xl font-bold print:text-3xl">{template.name}</h1>
-
-        {sections.map((section, idx) => (
-          <Card key={idx} data-section-card>
-            <CardHeader className="pb-2">
-              <CardTitle className="text-base">{section.title}</CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              {/* Section text */}
-              <pre className="whitespace-pre-wrap text-sm font-sans leading-relaxed text-foreground/90">
-                {section.content}
-              </pre>
-
-              {/* Inserted images */}
-              {section.images.length > 0 && (
-                <div className="space-y-3">
-                  {section.images.map((src, imgIdx) => (
-                    <div key={imgIdx} className="relative inline-block">
-                      {/* eslint-disable-next-line @next/next/no-img-element */}
-                      <img
-                        src={src}
-                        alt={`插入圖片 ${imgIdx + 1}`}
-                        className="max-w-full rounded border"
-                        style={{ maxHeight: "480px", objectFit: "contain" }}
-                      />
-                      <button
-                        data-print-hide
-                        onClick={() => removeImage(idx, imgIdx)}
-                        className="absolute top-1 right-1 rounded-full bg-black/60 text-white p-0.5 hover:bg-black/80 print:hidden"
-                        title="刪除圖片"
-                      >
-                        <X className="h-3 w-3" />
-                      </button>
-                    </div>
-                  ))}
-                </div>
+      {proposalData ? (
+        /* ── 建議書模板：ProposalDocument ── */
+        <div ref={previewRef} className="bg-white rounded-xl shadow">
+          {/* 工具列 */}
+          <div className="px-6 py-4 border-b flex items-center justify-between flex-wrap gap-3">
+            <div className="flex items-center gap-2">
+              <h2 className="font-semibold text-gray-700">預覽 / 插入圖片</h2>
+              {images.length > 0 && (
+                <span className="text-xs bg-green-100 text-green-700 px-2 py-0.5 rounded-full">
+                  已插入 {images.length} 張
+                </span>
               )}
+            </div>
+            <div className="flex items-center gap-2 flex-wrap">
+              <button
+                onClick={() => setEditMode((v) => !v)}
+                className={`text-sm px-3 py-1.5 rounded-md border transition-colors ${
+                  editMode
+                    ? "bg-blue-600 text-white border-blue-600"
+                    : "bg-white text-gray-700 border-gray-300 hover:bg-gray-50"
+                }`}
+              >
+                {editMode ? "完成插入圖片" : "插入圖片"}
+              </button>
+              <button
+                onClick={handlePreviewPDF}
+                disabled={pdfLoading !== null}
+                className="text-sm px-3 py-1.5 rounded-md border border-gray-300 bg-white text-gray-700 hover:bg-gray-50 disabled:opacity-50 transition-colors"
+              >
+                {pdfLoading === "preview" ? "產生中…" : "預覽 PDF"}
+              </button>
+              <button
+                onClick={handleDownloadPDF}
+                disabled={pdfLoading !== null}
+                className="text-sm px-3 py-1.5 rounded-md border border-gray-300 bg-white text-gray-700 hover:bg-gray-50 disabled:opacity-50 transition-colors"
+              >
+                {pdfLoading === "download" ? "產生中…" : "下載 PDF"}
+              </button>
+              <button
+                onClick={() => window.print()}
+                className="text-sm px-3 py-1.5 rounded-md border border-gray-300 bg-white text-gray-700 hover:bg-gray-50 transition-colors"
+              >
+                列印
+              </button>
+            </div>
+          </div>
 
-              {/* Insert image button */}
-              <div data-print-hide className="print:hidden">
-                <input
-                  type="file"
-                  accept="image/*"
-                  hidden
-                  ref={(el) => { fileInputRefs.current[idx] = el }}
-                  onChange={(e) => handleFileChange(idx, e.target.files?.[0])}
-                  // reset value so same file can be re-selected
-                  onClick={(e) => { (e.target as HTMLInputElement).value = "" }}
-                />
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  className="gap-1.5 text-muted-foreground hover:text-foreground"
-                  onClick={() => triggerImagePick(idx)}
-                >
-                  <ImagePlus className="h-4 w-4" />
-                  插入圖片
-                </Button>
-              </div>
-            </CardContent>
-          </Card>
-        ))}
-      </div>
+          {editMode && (
+            <div className="px-6 py-3 bg-blue-50 border-b text-sm text-blue-700">
+              圖片插入模式：捲動至各章節，點擊「+ 插入圖片」即可上傳。
+            </div>
+          )}
 
-      {/* ── PDF Preview Dialog ───────────────────────────────────── */}
-      <Dialog open={pdfDialogOpen} onOpenChange={setPdfDialogOpen}>
-        <DialogContent className="sm:max-w-sm">
-          <DialogHeader>
-            <DialogTitle>預覽 PDF</DialogTitle>
-          </DialogHeader>
-          <p className="text-sm text-muted-foreground py-2">
-            點擊下方「列印」後，在系統列印對話框中選擇目的地為
-            <span className="font-medium text-foreground"> 「儲存為 PDF」</span>
-            即可匯出 PDF 檔案。
-          </p>
-          <DialogFooter className="gap-2">
-            <Button variant="outline" onClick={() => setPdfDialogOpen(false)}>
-              取消
-            </Button>
-            <Button
-              onClick={() => {
-                setPdfDialogOpen(false)
-                // Small delay so dialog closes before print dialog opens
-                setTimeout(handlePrint, 150)
-              }}
-              className="gap-1.5"
-            >
-              <Printer className="h-4 w-4" />
-              列印 / 儲存 PDF
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-    </>
+          <div id="proposal-pdf-target" className="p-6">
+            <ProposalDocument
+              data={proposalData}
+              images={images}
+              editMode={editMode}
+              onImageInsert={handleImageInsert}
+              onImageRemove={handleImageRemove}
+              onImageUpdate={handleImageUpdate}
+            />
+          </div>
+        </div>
+      ) : (
+        /* ── 其他模板：純文字段落 ── */
+        <div ref={previewRef} className="space-y-6">
+          <h1 className="text-2xl font-bold">{template.name}</h1>
+          {plainContent
+            .split(/\n(?=## )/)
+            .map((chunk, idx) => {
+              const lines = chunk.split("\n")
+              const firstLine = lines[0].trimEnd()
+              const title = firstLine.startsWith("## ")
+                ? firstLine.slice(3).trim()
+                : firstLine.trim()
+              const body = lines.slice(1).join("\n").trim()
+              if (!title) return null
+              return (
+                <Card key={idx}>
+                  <CardHeader className="pb-2">
+                    <CardTitle className="text-base">{title}</CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <pre className="whitespace-pre-wrap text-sm font-sans leading-relaxed text-foreground/90">
+                      {body}
+                    </pre>
+                  </CardContent>
+                </Card>
+              )
+            })}
+        </div>
+      )}
+    </div>
   )
 }
