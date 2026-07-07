@@ -21,15 +21,16 @@ async def generate_proposal(payload: dict, db: AsyncSession = Depends(get_db)):
     company_name    = payload.get("company_name", "")
     extra           = payload.get("extra_requirements", "")
 
+    if not project_id:
+        raise HTTPException(status_code=422, detail="project_id is required")
+
     # 1. 向量搜尋：從知識庫抓相關資料
     search_q = f"{tender_name} {service_type} 服務內容 人員規格 合約條件 投標"
     q_vec = await ollama.embed(search_q)
     vec_str = _vec(q_vec)
 
-    where = "WHERE project_id = :project_id" if project_id else ""
-    params: dict = {"embedding": vec_str, "top_k": 6}
-    if project_id:
-        params["project_id"] = project_id
+    where = "WHERE project_id = :project_id"
+    params: dict = {"embedding": vec_str, "top_k": 6, "project_id": project_id}
 
     rows = await db.execute(
         text(f"""
@@ -112,6 +113,9 @@ async def generate_from_template(payload: dict, db: AsyncSession = Depends(get_d
 
     template_name = template.name
 
+    if not project_id:
+        raise HTTPException(status_code=422, detail="project_id is required")
+
     # 2. 建立 RAG 查詢 prompt（用欄位值組合 query string）
     query = " ".join(str(v) for v in fields.values() if v)
 
@@ -119,10 +123,8 @@ async def generate_from_template(payload: dict, db: AsyncSession = Depends(get_d
     q_vec = await ollama.embed(query)
     vec_str = _vec(q_vec)
 
-    where = "WHERE project_id = :project_id" if project_id else ""
-    params: dict = {"embedding": vec_str, "top_k": 5}
-    if project_id:
-        params["project_id"] = project_id
+    where = "WHERE project_id = :project_id"
+    params: dict = {"embedding": vec_str, "top_k": 5, "project_id": project_id}
 
     rows = await db.execute(
         text(f"""

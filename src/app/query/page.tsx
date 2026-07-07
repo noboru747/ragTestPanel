@@ -109,6 +109,7 @@ export default function QueryPage() {
   const send = async (text?: string) => {
     const question = text ?? input.trim()
     if (!question || loading) return
+    if (!projectId) return
 
     setInput("")
     const userMsg: Message = { id: Date.now().toString(), role: "user", content: question }
@@ -200,7 +201,8 @@ export default function QueryPage() {
                 <button
                   key={s}
                   onClick={() => send(s)}
-                  className="text-left text-sm px-4 py-2.5 rounded-lg border hover:border-primary/50 hover:bg-muted transition-colors"
+                  disabled={!projectId}
+                  className="text-left text-sm px-4 py-2.5 rounded-lg border hover:border-primary/50 hover:bg-muted transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   {s}
                 </button>
@@ -286,7 +288,8 @@ export default function QueryPage() {
               <button
                 key={s}
                 onClick={() => send(s)}
-                className="text-xs px-3 py-1 rounded-full border hover:border-primary/50 hover:bg-muted transition-colors text-muted-foreground"
+                disabled={!projectId}
+                className="text-xs px-3 py-1 rounded-full border hover:border-primary/50 hover:bg-muted transition-colors text-muted-foreground disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 {s}
               </button>
@@ -309,7 +312,7 @@ export default function QueryPage() {
           />
           <Button
             onClick={() => send()}
-            disabled={!input.trim() || loading}
+            disabled={!input.trim() || loading || !projectId}
             size="icon"
             className="shrink-0"
           >
@@ -320,8 +323,12 @@ export default function QueryPage() {
             )}
           </Button>
         </div>
-        <p className="text-[11px] text-muted-foreground text-center mt-2">
-          Enter 送出 · Shift+Enter 換行 · 答案由本地 Ollama 透過 RAG 語意搜尋生成
+        <p className="text-[11px] text-center mt-2">
+          {!projectId ? (
+            <span className="text-destructive font-medium">請先選擇專案才能送出查詢</span>
+          ) : (
+            <span className="text-muted-foreground">Enter 送出 · Shift+Enter 換行 · 答案由本地 Ollama 透過 RAG 語意搜尋生成</span>
+          )}
         </p>
       </div>
 

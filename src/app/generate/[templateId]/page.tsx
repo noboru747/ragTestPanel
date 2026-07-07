@@ -191,7 +191,11 @@ export default function GenerateFromTemplatePage({
 
   /* ── generate ──────────────────────────────────────────────── */
   const handleGenerate = async () => {
-    if (!template || !projectId) return
+    if (!template) return
+    if (!projectId) {
+      setGenError("請先選擇專案")
+      return
+    }
     setPhase("generating")
     setGenError("")
     try {

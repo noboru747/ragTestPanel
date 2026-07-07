@@ -1,7 +1,7 @@
 """
 RAG 查詢端點：向量搜尋 + Ollama 生成答案
 """
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import text
 
@@ -21,23 +21,31 @@ async def rag_query(payload: dict, db: AsyncSession = Depends(get_db)):
     if not question:
         return {"answer": "請輸入問題。", "sources": []}
 
+    if not project_id:
+        raise HTTPException(status_code=422, detail="project_id is required")
+
     # 1. 將問題向量化
     q_embedding = await ollama.embed(question)
     vec_str = _vec(q_embedding)
 
-    # 2. 從 pgvector 取回最相關文件片段
-    where = "WHERE project_id = :project_id" if project_id else ""
-    params: dict = {"embedding": vec_str, "top_k": top_k}
-    if project_id:
-        params["project_id"] = project_id
+    # 2. 從 pgvector 取回最相關文件片段（Hybrid Search: pgvector 0.7 + BM25 0.3）
+    where = "WHERE project_id = :project_id"
+    params: dict = {
+        "embedding": vec_str,
+        "top_k": top_k,
+        "project_id": project_id,
+        "query_text": question,
+    }
 
     rows = await db.execute(
         text(f"""
             SELECT filename, content,
-                   1 - (embedding <=> CAST(:embedding AS vector)) AS relevance
+                   (1 - (embedding <=> CAST(:embedding AS vector))) * 0.7
+                   + COALESCE(ts_rank(content_tsv, plainto_tsquery('simple', :query_text)), 0) * 0.3 AS relevance
             FROM documents
             {where}
-            ORDER BY embedding <=> CAST(:embedding AS vector)
+              AND superseded_by IS NULL
+            ORDER BY relevance DESC
             LIMIT :top_k
         """),
         params,
