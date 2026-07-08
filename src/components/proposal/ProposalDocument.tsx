@@ -93,6 +93,8 @@ interface ProposalDocumentProps {
   onImageRemove?: (slotId: string, idx: number) => void;
   onImageUpdate?: (slotId: string, idx: number, updates: Partial<InsertedImage>) => void;
   onSectionEdit?: (sectionId: string) => void;
+  pageNumPos?: 'left' | 'center' | 'right' | 'none';
+  showBlankAfterToc?: boolean;
 }
 
 const SLOT_LABELS: Record<string, string> = {
@@ -206,7 +208,25 @@ function ImageSlot({
   );
 }
 
-export default function ProposalDocument({ data, images = [], editMode, onImageInsert, onImageRemove, onImageUpdate, onSectionEdit }: ProposalDocumentProps) {
+export default function ProposalDocument({ data, images = [], editMode, onImageInsert, onImageRemove, onImageUpdate, onSectionEdit, pageNumPos = 'center', showBlankAfterToc = false }: ProposalDocumentProps) {
+  /* 分頁視覺提示（僅在瀏覽器顯示，列印時隱藏） */
+  const PageBreak = () => (
+    <div className="no-print -mx-16 -mt-12 mb-8 h-7 bg-gray-600 flex items-center justify-center">
+      <span className="text-[10px] text-gray-400 tracking-[3px]">分頁</span>
+    </div>
+  )
+
+  /* 頁碼 Footer（列印 + 預覽均顯示） */
+  const PageFooter = ({ pageNum }: { pageNum: number }) => {
+    if (pageNumPos === 'none') return null
+    const alignClass = pageNumPos === 'left' ? 'text-left' : pageNumPos === 'right' ? 'text-right' : 'text-center'
+    return (
+      <div className={`mt-10 pt-2 border-t border-gray-300 text-xs text-gray-400 ${alignClass}`}>
+        — {pageNum} —
+      </div>
+    )
+  }
+
   const EditBtn = ({ id, label }: { id: string; label: string }) =>
     onSectionEdit ? (
       <button
@@ -290,8 +310,19 @@ export default function ProposalDocument({ data, images = [], editMode, onImageI
         </div>
       </section>
 
+      {/* ===== 目錄後空白頁（選填）===== */}
+      {showBlankAfterToc && (
+        <section className="page py-12 px-16 print:page-break-before-always" style={{ minHeight: '842px' }}>
+          <PageBreak />
+          <div className="no-print flex items-center justify-center h-64 text-xs text-gray-300 border border-dashed border-gray-300 rounded mt-8">
+            空白頁（列印時保留，僅做分隔用）
+          </div>
+        </section>
+      )}
+
       {/* ===== 壹、總論 ===== */}
       <section className="page section-page py-12 px-16 print:page-break-before-always">
+        <PageBreak />
         <h2 className="text-xl font-bold mb-6 flex items-center gap-2">
           <span className="bg-gray-800 text-white px-3 py-1">壹</span>
           <span>總論</span>
@@ -318,10 +349,12 @@ export default function ProposalDocument({ data, images = [], editMode, onImageI
           </tbody>
         </table>
         {slot('after-summary')}
+        <PageFooter pageNum={1} />
       </section>
 
       {/* ===== 貳、專案概述 ===== */}
       <section className="page section-page py-12 px-16 print:page-break-before-always">
+        <PageBreak />
         <h2 className="text-xl font-bold mb-6 flex items-center gap-2">
           <span className="bg-gray-800 text-white px-3 py-1">貳</span>
           <span>專案概述</span>
@@ -360,11 +393,13 @@ export default function ProposalDocument({ data, images = [], editMode, onImageI
               </div>
             ))}
           </div>
+          <PageFooter pageNum={2} />
         </div>
       </section>
 
       {/* ===== 參、人力規劃 ===== */}
       <section className="page section-page py-12 px-16 print:page-break-before-always">
+        <PageBreak />
         <h2 className="text-xl font-bold mb-6 flex items-center gap-2">
           <span className="bg-gray-800 text-white px-3 py-1">參</span>
           <span>專案管理之人力規劃配置</span>
@@ -404,11 +439,13 @@ export default function ProposalDocument({ data, images = [], editMode, onImageI
             <p className="pl-4 whitespace-pre-line">{data.hrPlan?.qualityManagement}</p>
             {slot('after-quality')}
           </div>
+          <PageFooter pageNum={3} />
         </div>
       </section>
 
       {/* ===== 肆、公司實績 ===== */}
       <section className="page section-page py-12 px-16 print:page-break-before-always">
+        <PageBreak />
         <h2 className="text-xl font-bold mb-6 flex items-center gap-2">
           <span className="bg-gray-800 text-white px-3 py-1">肆</span>
           <span>公司履約實績及經營現況</span>
@@ -450,11 +487,14 @@ export default function ProposalDocument({ data, images = [], editMode, onImageI
             </table>
             {slot('after-experiences')}
           </div>
+          <PageFooter pageNum={4} />
         </div>
       </section>
 
       {/* ===== 伍、價格分析 ===== */}
+
       <section className="page section-page py-12 px-16 print:page-break-before-always">
+        <PageBreak />
         <h2 className="text-xl font-bold mb-6 flex items-center gap-2">
           <span className="bg-gray-800 text-white px-3 py-1">伍</span>
           <span>價格分析</span>
@@ -496,6 +536,7 @@ export default function ProposalDocument({ data, images = [], editMode, onImageI
             </table>
             {slot('after-pricing')}
           </div>
+          <PageFooter pageNum={5} />
         </div>
       </section>
 

@@ -7,10 +7,29 @@ import ProposalDocument, {
   type InsertedImage,
 } from "@/components/proposal/ProposalDocument"
 
+type PageNumPos = 'left' | 'center' | 'right' | 'none'
+
+function pageNumCss(pos: PageNumPos): string {
+  if (pos === 'none') return ''
+  const placement = pos === 'left' ? 'left' : pos === 'right' ? 'right' : 'center'
+  return `
+    @page {
+      @bottom-${placement} {
+        content: "— " counter(page) " —";
+        font-size: 9pt;
+        color: #9ca3af;
+        font-family: serif;
+      }
+    }
+  `
+}
+
 function PreviewContent() {
   const searchParams = useSearchParams()
   const [proposalData, setProposalData] = useState<ProposalData | null>(null)
   const [images, setImages] = useState<InsertedImage[]>([])
+  const [pageNumPos, setPageNumPos] = useState<PageNumPos>('center')
+  const [showBlankAfterToc, setShowBlankAfterToc] = useState(false)
 
   useEffect(() => {
     const key = searchParams.get("key")
@@ -21,6 +40,8 @@ function PreviewContent() {
       const data = JSON.parse(raw)
       if (data.proposalData) setProposalData(data.proposalData)
       if (data.images) setImages(data.images)
+      if (data.pageNumPos) setPageNumPos(data.pageNumPos)
+      if (typeof data.showBlankAfterToc === 'boolean') setShowBlankAfterToc(data.showBlankAfterToc)
     } catch {}
   }, [searchParams])
 
@@ -47,7 +68,8 @@ function PreviewContent() {
           body { background: white !important; margin: 0; }
           * { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
         }
-        @page { size: A4; margin: 2cm 2.5cm; }
+        @page { size: A4; margin: 2cm 2.5cm 2.5cm; }
+        ${pageNumCss(pageNumPos)}
       `}</style>
 
       {/* 頂部 Nav */}
@@ -69,13 +91,19 @@ function PreviewContent() {
         </div>
       </div>
 
-      {/* 深色底 + 白紙居中，左右各約 20% */}
+      {/* 深色底 + 白紙居中 */}
       <div
         className="min-h-screen bg-gray-700"
         style={{ paddingTop: "3rem", paddingBottom: "3rem", paddingLeft: "20%", paddingRight: "20%" }}
       >
         <div className="bg-white shadow-2xl">
-          <ProposalDocument data={proposalData} images={images} editMode={false} />
+          <ProposalDocument
+            data={proposalData}
+            images={images}
+            editMode={false}
+            pageNumPos={pageNumPos}
+            showBlankAfterToc={showBlankAfterToc}
+          />
         </div>
       </div>
     </>

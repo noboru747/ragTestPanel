@@ -67,6 +67,10 @@ export default function GenerateFromTemplatePage({
   const [drafts, setDrafts] = useState<DraftEntry[]>([])
   const [panelOpen, setPanelOpen] = useState(false)
 
+  /* page settings */
+  const [pageNumPos, setPageNumPos] = useState<'left' | 'center' | 'right' | 'none'>('center')
+  const [showBlankAfterToc, setShowBlankAfterToc] = useState(false)
+
   /* section edit modal */
   const [editingSection, setEditingSection] = useState<string | null>(null)
   const [sectionDraft, setSectionDraft] = useState<ProposalData | null>(null)
@@ -172,7 +176,7 @@ export default function GenerateFromTemplatePage({
   const openPreviewWindow = (autoPrint = false) => {
     if (!proposalData) return
     const key = `rga-preview-${Date.now()}`
-    sessionStorage.setItem(key, JSON.stringify({ proposalData, images }))
+    sessionStorage.setItem(key, JSON.stringify({ proposalData, images, pageNumPos, showBlankAfterToc }))
     const url = `/generate/preview?key=${key}${autoPrint ? "&print=1" : ""}`
     window.open(url, "_blank")
   }
@@ -820,6 +824,35 @@ export default function GenerateFromTemplatePage({
               </div>
             )}
 
+            {/* ── 分頁設定列 ─────────────────────────────────────────────── */}
+            <div className="px-6 py-2.5 bg-gray-50 border-b flex flex-wrap items-center gap-5 text-xs text-gray-600">
+              <div className="flex items-center gap-2">
+                <span className="font-medium text-gray-500">頁碼位置</span>
+                {([ ['left','靠左'], ['center','置中'], ['right','靠右'], ['none','無'] ] as const).map(([pos, label]) => (
+                  <button
+                    key={pos}
+                    onClick={() => setPageNumPos(pos)}
+                    className={`px-2.5 py-1 rounded border transition ${
+                      pageNumPos === pos
+                        ? 'bg-gray-800 text-white border-gray-800'
+                        : 'border-gray-300 hover:bg-gray-100 text-gray-600'
+                    }`}
+                  >
+                    {label}
+                  </button>
+                ))}
+              </div>
+              <label className="flex items-center gap-1.5 cursor-pointer select-none">
+                <input
+                  type="checkbox"
+                  checked={showBlankAfterToc}
+                  onChange={e => setShowBlankAfterToc(e.target.checked)}
+                  className="rounded"
+                />
+                <span>目錄後插入空白頁</span>
+              </label>
+            </div>
+
             <div id="proposal-pdf-target" className="p-6">
               <ProposalDocument
                 data={proposalData}
@@ -829,6 +862,8 @@ export default function GenerateFromTemplatePage({
                 onImageRemove={handleImageRemove}
                 onImageUpdate={handleImageUpdate}
                 onSectionEdit={handleSectionEdit}
+                pageNumPos={pageNumPos}
+                showBlankAfterToc={showBlankAfterToc}
               />
             </div>
           </div>
