@@ -1,5 +1,7 @@
 import json
 import os
+import random
+import string
 import uuid
 from datetime import datetime
 
@@ -10,12 +12,28 @@ router = APIRouter()
 FEEDBACK_FILE = os.path.join(os.path.dirname(__file__), "..", "feedback", "feedback.json")
 
 
+def _gen_code() -> str:
+    """6 碼大寫英數短碼，供人工快速引用"""
+    return "".join(random.choices(string.ascii_uppercase + string.digits, k=6))
+
+
 def _load() -> list:
     try:
         with open(FEEDBACK_FILE, encoding="utf-8") as f:
-            return json.load(f)
+            entries = json.load(f)
     except (FileNotFoundError, json.JSONDecodeError):
         return []
+
+    # 回填：舊資料若沒有 code 欄位，補上並存回去
+    patched = False
+    for e in entries:
+        if not e.get("code"):
+            e["code"] = _gen_code()
+            patched = True
+    if patched:
+        _save(entries)
+
+    return entries
 
 
 def _save(entries: list):
@@ -35,6 +53,7 @@ async def submit_feedback(payload: dict):
 
     entry = {
         "id":          str(uuid.uuid4()),
+        "code":        _gen_code(),
         "page":        page,
         "topic":       topic,
         "content":     content,
@@ -46,7 +65,7 @@ async def submit_feedback(payload: dict):
     entries = entries[:500]
     _save(entries)
 
-    return {"ok": True, "id": entry["id"]}
+    return {"ok": True, "id": entry["id"], "code": entry["code"]}
 
 
 @router.get("")

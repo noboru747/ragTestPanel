@@ -5,6 +5,7 @@ import { X } from "lucide-react"
 
 export type FeedbackEntry = {
   id: string
+  code: string
   page: string
   topic: string
   content: string

@@ -122,6 +122,9 @@ export default function FeedbackAdminPage() {
             >
               <div className="flex items-start justify-between gap-3">
                 <div className="flex items-center gap-2 flex-wrap">
+                  <span className="font-mono text-xs font-bold text-amber-600 bg-amber-50 border border-amber-200 px-2 py-0.5 rounded select-all">
+                    #{entry.code ?? "------"}
+                  </span>
                   {pageBadge(entry.page)}
                   <span className="font-medium text-gray-900 text-sm">{entry.topic}</span>
                 </div>
