@@ -2,7 +2,6 @@
 
 import { useEffect, useRef, useState } from "react"
 import { useRouter } from "next/navigation"
-import { BUILT_TEMPLATES } from "@/lib/built-templates"
 import ProposalDocument, {
   type ProposalData,
   type InsertedImage,
@@ -10,8 +9,17 @@ import ProposalDocument, {
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { ArrowLeft, Loader2, Sparkles } from "lucide-react"
+import { printProposalPdf, downloadProposalPdf } from "@/lib/generatePdf"
 
 /* ─── types ────────────────────────────────────────────────────── */
+
+type Template = {
+  id: string
+  name: string
+  type: string
+  description: string
+  fields: string[]
+}
 
 type Project = {
   id: string
@@ -41,7 +49,7 @@ export default function GenerateFromTemplatePage({
   const router = useRouter()
 
   /* template */
-  const [template, setTemplate] = useState<(typeof BUILT_TEMPLATES)[0] | null>(null)
+  const [template, setTemplate] = useState<Template | null>(null)
 
   /* projects */
   const [projects, setProjects] = useState<Project[]>([])
@@ -66,6 +74,7 @@ export default function GenerateFromTemplatePage({
   /* drafts panel */
   const [drafts, setDrafts] = useState<DraftEntry[]>([])
   const [panelOpen, setPanelOpen] = useState(false)
+  const [savedIndicator, setSavedIndicator] = useState(false)
 
   /* page settings */
   const [pageNumPos, setPageNumPos] = useState<'left' | 'center' | 'right' | 'none'>('center')
@@ -81,6 +90,17 @@ export default function GenerateFromTemplatePage({
     setEditingSection(sectionId)
   }
 
+  const handlePageBreakToggle = (slotId: string) => {
+    setProposalData(prev => {
+      if (!prev) return prev
+      const current = prev.pageBreaks ?? []
+      const next = current.includes(slotId)
+        ? current.filter(id => id !== slotId)
+        : [...current, slotId]
+      return { ...prev, pageBreaks: next }
+    })
+  }
+
   const handleEditConfirm = () => {
     if (sectionDraft) setProposalData(sectionDraft)
     setEditingSection(null)
@@ -93,17 +113,23 @@ export default function GenerateFromTemplatePage({
   }
 
   const previewRef = useRef<HTMLDivElement>(null)
+  const autoFilledFields = useRef<Set<string>>(new Set())
+  const sessionDraftId = useRef<string>(String(Date.now()))
 
   /* ── resolve params → find template ──────────────────────────── */
   useEffect(() => {
     params.then(({ templateId }) => {
-      const found = BUILT_TEMPLATES.find((t) => t.id === templateId) ?? null
-      setTemplate(found)
-      if (found) {
-        const init: Record<string, string> = {}
-        found.fields.forEach((f) => { init[f] = "" })
-        setForm(init)
-      }
+      fetch(`/api/templates/${templateId}`)
+        .then(r => r.ok ? r.json() : null)
+        .then((found: Template | null) => {
+          setTemplate(found)
+          if (found) {
+            const init: Record<string, string> = {}
+            found.fields.forEach((f: string) => { init[f] = "" })
+            setForm(init)
+          }
+        })
+        .catch(() => {})
     })
   }, [params])
 
@@ -126,6 +152,75 @@ export default function GenerateFromTemplatePage({
       setDrafts(stored)
     } catch {}
   }, [])
+
+  /* ── debounce 自動存草稿（覆蓋同一筆，不含 base64 圖片）─────── */
+  useEffect(() => {
+    if (!proposalData) return
+    const timer = setTimeout(() => {
+      const draft: DraftEntry = {
+        id: sessionDraftId.current,
+        label: (form["案號"] || form["機關名稱"] || "草稿") + "（自動）",
+        savedAt: new Date().toISOString(),
+        form,
+        proposalData,
+      }
+      try {
+        const existing: DraftEntry[] = JSON.parse(localStorage.getItem(STORAGE_KEY) ?? "[]")
+        const filtered = existing.filter(d => d.id !== sessionDraftId.current)
+        const next = [draft, ...filtered].slice(0, 20)
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(next))
+        setDrafts(next)
+        setSavedIndicator(true)
+        setTimeout(() => setSavedIndicator(false), 2000)
+      } catch {}
+    }, 2000)
+    return () => clearTimeout(timer)
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [form, proposalData])
+
+  /* ── 載入常駐變數並自動填入（全域，template 就緒後只填空欄位）*/
+  useEffect(() => {
+    if (!template) return
+    fetch("/api/company-vars")
+      .then(r => r.json())
+      .then(({ vars }: { vars: Array<{ key: string; value: string }> }) => {
+        if (!vars?.length) return
+        setForm(prev => {
+          const patch: Record<string, string> = {}
+          for (const { key, value } of vars) {
+            if (key in prev && !prev[key]) {
+              patch[key] = value
+              autoFilledFields.current.add(key)
+            }
+          }
+          return Object.keys(patch).length ? { ...prev, ...patch } : prev
+        })
+      })
+      .catch(() => {})
+  }, [template])
+
+  /* ── 專案變數填入（選擇專案改變時，填空欄位 + 被自動填入的欄位）*/
+  useEffect(() => {
+    if (!projectId || !template) return
+    fetch(`/api/company-vars/project/${projectId}`)
+      .then(r => r.json())
+      .then(({ vars }: { vars: Array<{ key: string; value: string }> }) => {
+        if (!vars?.length) return
+        setForm(prev => {
+          const patch: Record<string, string> = {}
+          for (const { key, value } of vars) {
+            if (key in prev) {
+              if (!prev[key] || autoFilledFields.current.has(key)) {
+                patch[key] = value
+                autoFilledFields.current.add(key)
+              }
+            }
+          }
+          return Object.keys(patch).length ? { ...prev, ...patch } : prev
+        })
+      })
+      .catch(() => {})
+  }, [projectId, template])
 
   /* ── generate ─────────────────────────────────────────────────── */
   const handleGenerate = async () => {
@@ -173,16 +268,28 @@ export default function GenerateFromTemplatePage({
   }
 
   /* ── PDF helpers ──────────────────────────────────────────────── */
-  const openPreviewWindow = (autoPrint = false) => {
-    if (!proposalData) return
-    const key = `rga-preview-${Date.now()}`
-    sessionStorage.setItem(key, JSON.stringify({ proposalData, images, pageNumPos, showBlankAfterToc }))
-    const url = `/generate/preview?key=${key}${autoPrint ? "&print=1" : ""}`
-    window.open(url, "_blank")
+  const handlePreviewPDF = async () => {
+    if (!proposalData || pdfLoading !== null) return
+    setPdfLoading("preview")
+    try {
+      await printProposalPdf(proposalData, images)
+    } catch {
+      alert("PDF 產生失敗，請稍後再試")
+    } finally {
+      setPdfLoading(null)
+    }
   }
-
-  const handlePreviewPDF = () => openPreviewWindow(false)
-  const handleDownloadPDF = () => openPreviewWindow(true)
+  const handleDownloadPDF = async () => {
+    if (!proposalData || pdfLoading !== null) return
+    setPdfLoading("download")
+    try {
+      await downloadProposalPdf(proposalData, images)
+    } catch {
+      alert("PDF 產生失敗，請稍後再試")
+    } finally {
+      setPdfLoading(null)
+    }
+  }
 
   /* ── image handlers ───────────────────────────────────────────── */
   const handleImageInsert = (slotId: string, file: File) => {
@@ -365,9 +472,11 @@ export default function GenerateFromTemplatePage({
                       {field === "需求重點" ? (
                         <textarea
                           value={form[field] ?? ""}
-                          onChange={(e) =>
-                            setForm((prev) => ({ ...prev, [field]: e.target.value }))
-                          }
+                          onChange={(e) => {
+                            const v = e.target.value
+                            setForm((prev) => ({ ...prev, [field]: v }))
+                            autoFilledFields.current.delete(field)
+                          }}
                           rows={3}
                           placeholder={field}
                           className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm resize-none focus:outline-none focus:ring-2 focus:ring-ring"
@@ -376,9 +485,11 @@ export default function GenerateFromTemplatePage({
                         <input
                           type="text"
                           value={form[field] ?? ""}
-                          onChange={(e) =>
-                            setForm((prev) => ({ ...prev, [field]: e.target.value }))
-                          }
+                          onChange={(e) => {
+                            const v = e.target.value
+                            setForm((prev) => ({ ...prev, [field]: v }))
+                            autoFilledFields.current.delete(field)
+                          }}
                           placeholder={field}
                           className="w-full h-10 rounded-md border border-input bg-background px-3 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
                         />
@@ -484,13 +595,13 @@ export default function GenerateFromTemplatePage({
               <div>{label("標案名稱")}{inp(sectionDraft.caseTitle, v => setSectionDraft(d => d ? { ...d, caseTitle: v } : d))}</div>
               <div className="grid grid-cols-2 gap-4">
                 <div>{label("案號")}{inp(sectionDraft.caseCode, v => setSectionDraft(d => d ? { ...d, caseCode: v } : d))}</div>
-                <div>{label("提交日期")}{inp(sectionDraft.submissionDate, v => setSectionDraft(d => d ? { ...d, submissionDate: v } : d))}</div>
+                <div>{label("提交日期")}{inp(sectionDraft.submissionDate, v => { autoFilledFields.current.delete('submissionDate'); setSectionDraft(d => d ? { ...d, submissionDate: v } : d) })}</div>
               </div>
-              <div>{label("投標公司")}{inp(sectionDraft.companyName, v => setSectionDraft(d => d ? { ...d, companyName: v } : d))}</div>
-              <div>{label("地址")}{inp(sectionDraft.companyAddress, v => setSectionDraft(d => d ? { ...d, companyAddress: v } : d))}</div>
+              <div>{label("投標公司")}{inp(sectionDraft.companyName, v => { autoFilledFields.current.delete('companyName'); setSectionDraft(d => d ? { ...d, companyName: v } : d) })}</div>
+              <div>{label("地址")}{inp(sectionDraft.companyAddress, v => { autoFilledFields.current.delete('companyAddress'); setSectionDraft(d => d ? { ...d, companyAddress: v } : d) })}</div>
               <div className="grid grid-cols-2 gap-4">
-                <div>{label("聯絡人")}{inp(sectionDraft.contactPerson, v => setSectionDraft(d => d ? { ...d, contactPerson: v } : d))}</div>
-                <div>{label("電話")}{inp(sectionDraft.contactPhone, v => setSectionDraft(d => d ? { ...d, contactPhone: v } : d))}</div>
+                <div>{label("聯絡人")}{inp(sectionDraft.contactPerson, v => { autoFilledFields.current.delete('contactPerson'); setSectionDraft(d => d ? { ...d, contactPerson: v } : d) })}</div>
+                <div>{label("電話")}{inp(sectionDraft.contactPhone, v => { autoFilledFields.current.delete('contactPhone'); setSectionDraft(d => d ? { ...d, contactPhone: v } : d) })}</div>
               </div>
             </>
           )}
@@ -777,7 +888,7 @@ export default function GenerateFromTemplatePage({
                   onClick={() => {
                     if (!proposalData) return
                     const draft: DraftEntry = {
-                      id: String(Date.now()),
+                      id: sessionDraftId.current,
                       label: (form["案號"] || form["機關名稱"] || "草稿") + "（含圖）",
                       savedAt: new Date().toISOString(),
                       form,
@@ -786,14 +897,21 @@ export default function GenerateFromTemplatePage({
                     }
                     try {
                       const existing: DraftEntry[] = JSON.parse(localStorage.getItem(STORAGE_KEY) ?? "[]")
-                      const next = [draft, ...existing].slice(0, 20)
+                      const filtered = existing.filter(d => d.id !== sessionDraftId.current)
+                      const next = [draft, ...filtered].slice(0, 20)
                       localStorage.setItem(STORAGE_KEY, JSON.stringify(next))
                       setDrafts(next)
+                      setSavedIndicator(true)
+                      setTimeout(() => setSavedIndicator(false), 2000)
                     } catch {}
                   }}
-                  className="text-sm px-3 py-1.5 rounded-md border border-green-400 bg-green-50 text-green-700 hover:bg-green-100 transition-colors"
+                  className={`text-sm px-3 py-1.5 rounded-md border transition-colors ${
+                    savedIndicator
+                      ? "border-green-500 bg-green-500 text-white"
+                      : "border-green-400 bg-green-50 text-green-700 hover:bg-green-100"
+                  }`}
                 >
-                  更新草稿
+                  {savedIndicator ? "已儲存 ✓" : "更新草稿"}
                 </button>
                 <button
                   onClick={handlePreviewPDF}
@@ -808,12 +926,6 @@ export default function GenerateFromTemplatePage({
                   className="text-sm px-3 py-1.5 rounded-md border border-gray-300 bg-white text-gray-700 hover:bg-gray-50 disabled:opacity-50 transition-colors"
                 >
                   {pdfLoading === "download" ? "產生中…" : "下載 PDF"}
-                </button>
-                <button
-                  onClick={() => window.print()}
-                  className="text-sm px-3 py-1.5 rounded-md border border-gray-300 bg-white text-gray-700 hover:bg-gray-50 transition-colors"
-                >
-                  列印
                 </button>
               </div>
             </div>
@@ -862,6 +974,7 @@ export default function GenerateFromTemplatePage({
                 onImageRemove={handleImageRemove}
                 onImageUpdate={handleImageUpdate}
                 onSectionEdit={handleSectionEdit}
+                onPageBreakToggle={handlePageBreakToggle}
                 pageNumPos={pageNumPos}
                 showBlankAfterToc={showBlankAfterToc}
               />

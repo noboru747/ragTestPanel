@@ -90,6 +90,7 @@ services:
     environment:
       BACKEND_URL: http://backend:8000
       NEXT_PUBLIC_SHOW_OCR: ${NEXT_PUBLIC_SHOW_OCR:-false}
+      NEXTAUTH_URL: http://localhost:3000
     depends_on:
       - backend
 

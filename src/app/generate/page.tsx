@@ -1,13 +1,33 @@
 "use client"
 
+import { useEffect, useState } from "react"
 import { useRouter } from "next/navigation"
 import { Card, CardContent } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { FileText, Sparkles } from "lucide-react"
-import { BUILT_TEMPLATES } from "@/lib/built-templates"
+
+type Template = {
+  id: string
+  name: string
+  type: string
+  description: string
+  fields: string[]
+}
 
 export default function GeneratePage() {
   const router = useRouter()
+  const [templates, setTemplates] = useState<Template[]>([])
+  const [loading, setLoading] = useState(true)
+
+  useEffect(() => {
+    fetch("/api/templates")
+      .then(r => r.ok ? r.json() : { templates: [] })
+      .then((data: { templates?: Template[] }) => {
+        setTemplates(data.templates ?? [])
+      })
+      .catch(() => {})
+      .finally(() => setLoading(false))
+  }, [])
 
   return (
     <div className="p-6 space-y-6">
@@ -18,7 +38,13 @@ export default function GeneratePage() {
         </p>
       </div>
 
-      {BUILT_TEMPLATES.length === 0 ? (
+      {loading ? (
+        <Card>
+          <CardContent className="p-10 flex flex-col items-center gap-3 text-center">
+            <p className="font-medium text-sm text-muted-foreground">載入模板中...</p>
+          </CardContent>
+        </Card>
+      ) : templates.length === 0 ? (
         <Card>
           <CardContent className="p-10 flex flex-col items-center gap-3 text-center">
             <FileText className="h-10 w-10 text-muted-foreground opacity-40" />
@@ -27,7 +53,7 @@ export default function GeneratePage() {
         </Card>
       ) : (
         <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
-          {BUILT_TEMPLATES.map((tmpl) => (
+          {templates.map((tmpl) => (
             <Card key={tmpl.id} className="hover:border-primary/50 transition-colors">
               <CardContent className="p-5 space-y-3">
                 <div className="flex items-start gap-3">

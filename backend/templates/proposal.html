@@ -1,0 +1,628 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+<meta charset="UTF-8">
+<style>
+  /* ====== 頁面設定 ====== */
+  @page {
+    size: A4;
+    margin: 2cm 2.5cm 2.5cm;
+    @bottom-center {
+      content: "— " counter(page) " —";
+      font-size: 9pt;
+      color: #9ca3af;
+    }
+  }
+
+  /* ====== 全域字型 ====== */
+  * {
+    box-sizing: border-box;
+    margin: 0;
+    padding: 0;
+  }
+
+  body {
+    font-family: 'WenQuanYi Zen Hei', 'Noto Sans CJK TC', 'Noto Sans TC', sans-serif;
+    font-size: 10.5pt;
+    line-height: 1.8;
+    color: #1a1a1a;
+  }
+
+  /* ====== 換頁 ====== */
+  .page-break-after  { page-break-after: always; }
+  .page-break-before { page-break-before: always; }
+
+  /* ====== 封面 ====== */
+  .cover {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    min-height: 24cm;
+    text-align: center;
+    padding: 2cm 1cm;
+  }
+
+  .cover-header {
+    font-size: 13pt;
+    color: #374151;
+    margin-bottom: 3cm;
+    letter-spacing: 0.1em;
+  }
+
+  .cover-title {
+    font-size: 22pt;
+    font-weight: bold;
+    color: #111827;
+    letter-spacing: 0.05em;
+    margin-bottom: 0.5cm;
+  }
+
+  .cover-subtitle {
+    font-size: 14pt;
+    color: #374151;
+    margin-bottom: 3cm;
+  }
+
+  .cover-divider {
+    width: 8cm;
+    height: 2px;
+    background: #374151;
+    margin: 0 auto 3cm;
+  }
+
+  .cover-info-table {
+    width: 14cm;
+    border-collapse: collapse;
+    margin: 0 auto 3cm;
+  }
+
+  .cover-info-table td {
+    padding: 6pt 10pt;
+    font-size: 11pt;
+    line-height: 2;
+  }
+
+  .cover-info-table td:first-child {
+    color: #6b7280;
+    white-space: nowrap;
+    text-align: right;
+    width: 4.5cm;
+  }
+
+  .cover-info-table td:nth-child(2) {
+    color: #6b7280;
+    white-space: nowrap;
+    text-align: center;
+    width: 0.5cm;
+  }
+
+  .cover-info-table td:last-child {
+    color: #111827;
+    font-weight: 600;
+    text-align: left;
+  }
+
+  /* ====== 目錄 ====== */
+  .toc-section {
+    padding: 1cm 0;
+  }
+
+  .toc-title {
+    font-size: 16pt;
+    font-weight: bold;
+    text-align: center;
+    margin-bottom: 1cm;
+    padding-bottom: 0.4cm;
+    border-bottom: 2px solid #374151;
+  }
+
+  .toc-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    padding: 4pt 0;
+    font-size: 10.5pt;
+  }
+
+  .toc-item-label {
+    font-weight: 600;
+  }
+
+  .toc-item-dots {
+    flex: 1;
+    border-bottom: 1px dotted #9ca3af;
+    margin: 0 8pt;
+  }
+
+  /* ====== 章節標題 ====== */
+  .section-title {
+    font-size: 14pt;
+    font-weight: bold;
+    color: #111827;
+    padding: 8pt 12pt;
+    border-left: 5px solid #374151;
+    background: #f9fafb;
+    margin-bottom: 0.8cm;
+    letter-spacing: 0.05em;
+  }
+
+  .subsection-title {
+    font-size: 11pt;
+    font-weight: bold;
+    color: #374151;
+    margin-top: 0.6cm;
+    margin-bottom: 0.3cm;
+    padding-bottom: 2pt;
+    border-bottom: 1px solid #d1d5db;
+  }
+
+  /* ====== 段落 ====== */
+  .paragraph {
+    margin-bottom: 0.4cm;
+    text-align: justify;
+  }
+
+  .pre-line {
+    white-space: pre-line;
+  }
+
+  /* ====== 表格 ====== */
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    margin-bottom: 0.6cm;
+    font-size: 10pt;
+  }
+
+  table th {
+    background: #374151;
+    color: #ffffff;
+    padding: 5pt 8pt;
+    text-align: center;
+    font-weight: 600;
+    border: 1px solid #374151;
+  }
+
+  table td {
+    padding: 5pt 8pt;
+    border: 1px solid #d1d5db;
+    vertical-align: top;
+    line-height: 1.7;
+  }
+
+  table tr:nth-child(even) td {
+    background: #f9fafb;
+  }
+
+  /* ====== 清單 ====== */
+  .objective-list {
+    list-style: none;
+    padding: 0;
+    margin-bottom: 0.4cm;
+  }
+
+  .objective-list li {
+    padding: 3pt 0 3pt 16pt;
+    position: relative;
+  }
+
+  .objective-list li::before {
+    content: "▶";
+    position: absolute;
+    left: 0;
+    color: #374151;
+    font-size: 7pt;
+    top: 5pt;
+  }
+
+  /* ====== 工作要項 ====== */
+  .work-item {
+    margin-bottom: 0.4cm;
+  }
+
+  .work-item-title {
+    font-weight: bold;
+    color: #111827;
+    margin-bottom: 2pt;
+  }
+
+  .work-item-content {
+    color: #374151;
+    padding-left: 1em;
+    white-space: pre-line;
+  }
+
+  /* ====== 人力角色表格 ====== */
+  .role-table th:nth-child(1) { width: 20%; }
+  .role-table th:nth-child(2) { width: 8%; }
+  .role-table th:nth-child(3) { width: 36%; }
+  .role-table th:nth-child(4) { width: 36%; }
+
+  /* ====== 履約實績表格 ====== */
+  .exp-table th:nth-child(1) { width: 20%; }
+  .exp-table th:nth-child(2) { width: 35%; }
+  .exp-table th:nth-child(3) { width: 25%; }
+  .exp-table th:nth-child(4) { width: 20%; }
+
+  /* ====== 價格表格 ====== */
+  .price-table th:nth-child(1) { width: 35%; }
+  .price-table th:nth-child(2) { width: 10%; }
+  .price-table th:nth-child(3) { width: 12%; }
+  .price-table th:nth-child(4) { width: 18%; }
+  .price-table th:nth-child(5) { width: 25%; }
+
+  .price-table td:nth-child(3),
+  .price-table td:nth-child(4),
+  .price-table td:nth-child(5) {
+    text-align: right;
+  }
+
+  .price-total-row td {
+    font-weight: bold;
+    background: #e5e7eb !important;
+    border-top: 2px solid #374151;
+  }
+
+  /* ====== 封底留白 ====== */
+  .footer-note {
+    text-align: center;
+    color: #9ca3af;
+    font-size: 9pt;
+    margin-top: 1.5cm;
+  }
+
+  /* ====== 摘要表格 ====== */
+  .summary-table th:nth-child(1) { width: 20%; }
+  .summary-table th:nth-child(2) { width: 30%; }
+  .summary-table th:nth-child(3) { width: 50%; }
+
+  .summary-table td:first-child {
+    font-weight: 600;
+    background: #f3f4f6;
+  }
+
+  /* ====== 圖片插槽 ====== */
+  .img-slot { margin: 1em 0; }
+  .img-slot img { max-width: 100%; height: auto; display: block; }
+  .img-caption { text-align: center; font-size: 9pt; color: #555; margin-top: 0.3em; }
+</style>
+</head>
+<body>
+
+{% macro render_slot(slot_id) %}
+{% for img in images.get(slot_id, []) %}
+<div class="img-slot" style="text-align: {{ img.align }};">
+  <img src="{{ img.src }}" style="width: {{ img.width }};">
+  {% if img.caption %}<p class="img-caption">{{ img.caption }}</p>{% endif %}
+</div>
+{% endfor %}
+{% endmacro %}
+
+<!-- ==================== 封面 ==================== -->
+<div class="cover page-break-after">
+  <div class="cover-header">投標服務建議書</div>
+  <div class="cover-title">{{ data.courtName }}</div>
+  <div class="cover-subtitle">{{ data.caseTitle }}</div>
+  <div class="cover-divider"></div>
+  <table class="cover-info-table">
+    <tr>
+      <td>招標機關</td>
+      <td>：</td>
+      <td>{{ data.courtName }}</td>
+    </tr>
+    <tr>
+      <td>標案名稱</td>
+      <td>：</td>
+      <td>{{ data.caseTitle }}</td>
+    </tr>
+    {% if data.caseCode %}
+    <tr>
+      <td>案　　號</td>
+      <td>：</td>
+      <td>{{ data.caseCode }}</td>
+    </tr>
+    {% endif %}
+    <tr>
+      <td>投標廠商</td>
+      <td>：</td>
+      <td>{{ data.companyName }}</td>
+    </tr>
+    {% if data.companyAddress %}
+    <tr>
+      <td>公司地址</td>
+      <td>：</td>
+      <td>{{ data.companyAddress }}</td>
+    </tr>
+    {% endif %}
+    {% if data.contactPerson %}
+    <tr>
+      <td>聯絡人員</td>
+      <td>：</td>
+      <td>{{ data.contactPerson }}{% if data.contactPhone %}　{{ data.contactPhone }}{% endif %}</td>
+    </tr>
+    {% endif %}
+    {% if data.submissionDate %}
+    <tr>
+      <td>送件日期</td>
+      <td>：</td>
+      <td>{{ data.submissionDate }}</td>
+    </tr>
+    {% endif %}
+  </table>
+</div>
+{{ render_slot('after-cover') }}
+
+<!-- ==================== 目錄 ==================== -->
+<div class="toc-section page-break-after">
+  <div class="toc-title">目　　錄</div>
+
+  <div class="toc-item">
+    <span class="toc-item-label">壹、總論</span>
+    <span class="toc-item-dots"></span>
+  </div>
+  <div class="toc-item" style="padding-left:1.5em; font-size:10pt; color:#6b7280;">
+    <span>一、摘要說明</span>
+    <span class="toc-item-dots"></span>
+  </div>
+
+  <div class="toc-item" style="margin-top:6pt;">
+    <span class="toc-item-label">貳、專案概述</span>
+    <span class="toc-item-dots"></span>
+  </div>
+  <div class="toc-item" style="padding-left:1.5em; font-size:10pt; color:#6b7280;">
+    <span>一、專案名稱</span>
+    <span class="toc-item-dots"></span>
+  </div>
+  <div class="toc-item" style="padding-left:1.5em; font-size:10pt; color:#6b7280;">
+    <span>二、履約標的</span>
+    <span class="toc-item-dots"></span>
+  </div>
+  <div class="toc-item" style="padding-left:1.5em; font-size:10pt; color:#6b7280;">
+    <span>三、專案目標</span>
+    <span class="toc-item-dots"></span>
+  </div>
+  <div class="toc-item" style="padding-left:1.5em; font-size:10pt; color:#6b7280;">
+    <span>四、工作要項</span>
+    <span class="toc-item-dots"></span>
+  </div>
+
+  <div class="toc-item" style="margin-top:6pt;">
+    <span class="toc-item-label">參、人力規劃配置</span>
+    <span class="toc-item-dots"></span>
+  </div>
+  <div class="toc-item" style="padding-left:1.5em; font-size:10pt; color:#6b7280;">
+    <span>一、人力組織架構</span>
+    <span class="toc-item-dots"></span>
+  </div>
+  <div class="toc-item" style="padding-left:1.5em; font-size:10pt; color:#6b7280;">
+    <span>二、人員職掌說明</span>
+    <span class="toc-item-dots"></span>
+  </div>
+  <div class="toc-item" style="padding-left:1.5em; font-size:10pt; color:#6b7280;">
+    <span>三、品質管理措施</span>
+    <span class="toc-item-dots"></span>
+  </div>
+
+  <div class="toc-item" style="margin-top:6pt;">
+    <span class="toc-item-label">肆、公司履約實績</span>
+    <span class="toc-item-dots"></span>
+  </div>
+  <div class="toc-item" style="padding-left:1.5em; font-size:10pt; color:#6b7280;">
+    <span>一、公司基本資料</span>
+    <span class="toc-item-dots"></span>
+  </div>
+  <div class="toc-item" style="padding-left:1.5em; font-size:10pt; color:#6b7280;">
+    <span>二、承攬實績</span>
+    <span class="toc-item-dots"></span>
+  </div>
+
+  <div class="toc-item" style="margin-top:6pt;">
+    <span class="toc-item-label">伍、價格分析</span>
+    <span class="toc-item-dots"></span>
+  </div>
+  <div class="toc-item" style="padding-left:1.5em; font-size:10pt; color:#6b7280;">
+    <span>一、標價計算基礎</span>
+    <span class="toc-item-dots"></span>
+  </div>
+  <div class="toc-item" style="padding-left:1.5em; font-size:10pt; color:#6b7280;">
+    <span>二、標價明細</span>
+    <span class="toc-item-dots"></span>
+  </div>
+</div>
+
+<!-- ==================== 壹、總論 ==================== -->
+<div class="page-break-before">
+  <div class="section-title">壹、總論</div>
+
+  <div class="subsection-title">一、摘要說明</div>
+  <p class="paragraph">
+    本公司依據 {{ data.courtName }}「{{ data.caseTitle }}」之採購規範，提出本服務建議書，
+    說明本公司之服務能力、執行計畫及報價，以供貴機關評選參考。
+  </p>
+
+  <table class="summary-table">
+    <thead>
+      <tr>
+        <th>評估項目</th>
+        <th>說明要點</th>
+        <th>內容摘要</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for item in data.summary %}
+      <tr>
+        <td>{{ item.category }}</td>
+        <td>{{ item.description }}</td>
+        <td class="pre-line">{{ item.content }}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  {{ render_slot('after-summary') }}
+</div>
+
+<!-- ==================== 貳、專案概述 ==================== -->
+<div class="page-break-before">
+  <div class="section-title">貳、專案概述</div>
+
+  <div class="subsection-title">一、專案名稱</div>
+  <p class="paragraph">{{ data.projectOverview.projectName }}</p>
+
+  <div class="subsection-title">二、履約標的</div>
+  <p class="paragraph pre-line">{{ data.projectOverview.scope }}</p>
+  {{ render_slot('after-scope') }}
+
+  <div class="subsection-title">三、專案目標</div>
+  <ul class="objective-list">
+    {% for obj in data.projectOverview.objectives %}
+    <li>{{ obj }}</li>
+    {% endfor %}
+  </ul>
+
+  <div class="subsection-title">四、工作要項</div>
+  {% for wi in data.projectOverview.workItems %}
+  <div class="work-item">
+    <div class="work-item-title">{{ loop.index }}. {{ wi.title }}</div>
+    <div class="work-item-content">{{ wi.content }}</div>
+  </div>
+  {{ render_slot('after-workitem-' ~ loop.index0) }}
+  {% endfor %}
+</div>
+
+<!-- ==================== 參、人力規劃配置 ==================== -->
+<div class="page-break-before">
+  <div class="section-title">參、人力規劃配置</div>
+
+  <div class="subsection-title">一、人力組織架構</div>
+  <p class="paragraph pre-line">{{ data.hrPlan.teamStructure }}</p>
+  <p class="paragraph">本案預計配置工程師合計 <strong>{{ data.hrPlan.totalEngineers }}</strong> 名。</p>
+  {{ render_slot('after-org') }}
+
+  <div class="subsection-title">二、人員職掌說明</div>
+  <table class="role-table">
+    <thead>
+      <tr>
+        <th>職稱</th>
+        <th>人數</th>
+        <th>工作職掌</th>
+        <th>資格條件</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for role in data.hrPlan.roles %}
+      <tr>
+        <td>{{ role.title }}</td>
+        <td style="text-align:center;">{{ role.count }}</td>
+        <td class="pre-line">{{ role.duties }}</td>
+        <td class="pre-line">{{ role.qualifications }}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+
+  <div class="subsection-title">三、品質管理措施</div>
+  <p class="paragraph pre-line">{{ data.hrPlan.qualityManagement }}</p>
+  {{ render_slot('after-quality') }}
+</div>
+
+<!-- ==================== 肆、公司履約實績 ==================== -->
+<div class="page-break-before">
+  <div class="section-title">肆、公司履約實績</div>
+
+  <div class="subsection-title">一、公司基本資料</div>
+  <table>
+    <tbody>
+      <tr>
+        <td style="width:25%; font-weight:600; background:#f3f4f6;">公司名稱</td>
+        <td>{{ data.companyName }}</td>
+        <td style="width:25%; font-weight:600; background:#f3f4f6;">成立日期</td>
+        <td>{{ data.companyProfile.established }}</td>
+      </tr>
+      <tr>
+        <td style="font-weight:600; background:#f3f4f6;">資本額</td>
+        <td>{{ data.companyProfile.capital }}</td>
+        <td style="font-weight:600; background:#f3f4f6;">員工人數</td>
+        <td>{{ data.companyProfile.employees }}</td>
+      </tr>
+      {% if data.companyAddress %}
+      <tr>
+        <td style="font-weight:600; background:#f3f4f6;">公司地址</td>
+        <td colspan="3">{{ data.companyAddress }}</td>
+      </tr>
+      {% endif %}
+    </tbody>
+  </table>
+
+  <p class="paragraph pre-line" style="margin-top:0.3cm;">{{ data.companyProfile.introduction }}</p>
+  {{ render_slot('after-company-intro') }}
+
+  <div class="subsection-title">二、承攬實績</div>
+  <table class="exp-table">
+    <thead>
+      <tr>
+        <th>機關名稱</th>
+        <th>專案名稱</th>
+        <th>服務期間</th>
+        <th>合約金額</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for exp in data.companyProfile.experiences %}
+      <tr>
+        <td>{{ exp.client }}</td>
+        <td>{{ exp.project }}</td>
+        <td>{{ exp.period }}</td>
+        <td style="text-align:right;">{{ exp.amount }}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  {{ render_slot('after-experiences') }}
+</div>
+
+<!-- ==================== 伍、價格分析 ==================== -->
+<div class="page-break-before">
+  <div class="section-title">伍、價格分析</div>
+
+  <div class="subsection-title">一、標價計算基礎</div>
+  <p class="paragraph pre-line">{{ data.pricing.basis }}</p>
+
+  <div class="subsection-title">二、標價明細</div>
+  <table class="price-table">
+    <thead>
+      <tr>
+        <th>項目說明</th>
+        <th>單位</th>
+        <th>數量</th>
+        <th>單價</th>
+        <th>小計</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for item in data.pricing['items'] %}
+      <tr>
+        <td>{{ item.item }}</td>
+        <td style="text-align:center;">{{ item.unit }}</td>
+        <td style="text-align:center;">{{ item.quantity }}</td>
+        <td>{{ item.unitPrice }}</td>
+        <td>{{ item.subtotal }}</td>
+      </tr>
+      {% endfor %}
+      <tr class="price-total-row">
+        <td colspan="4" style="text-align:right;">合計總價</td>
+        <td>{{ data.pricing.totalAmount }}</td>
+      </tr>
+    </tbody>
+  </table>
+  {{ render_slot('after-pricing') }}
+
+  <p class="footer-note">
+    本建議書由 {{ data.companyName }} 編製，如有疑問請聯繫
+    {% if data.contactPerson %}{{ data.contactPerson }}{% endif %}
+    {% if data.contactPhone %}（{{ data.contactPhone }}）{% endif %}
+  </p>
+</div>
+
+</body>
+</html>

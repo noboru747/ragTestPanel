@@ -11,6 +11,7 @@ import {
   FileText,
   MessageSquarePlus,
   ClipboardList,
+  Settings,
 } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { Badge } from "@/components/ui/badge"
@@ -63,6 +64,20 @@ export function AppSidebar() {
         </nav>
 
         <div className="border-t p-3 space-y-1">
+          {/* 資訊管理 */}
+          <Link
+            href="/company-vars"
+            className={cn(
+              "flex items-center gap-3 rounded-md px-3 py-2 text-sm transition-colors",
+              pathname === "/company-vars"
+                ? "bg-primary text-primary-foreground"
+                : "text-muted-foreground hover:bg-muted hover:text-foreground"
+            )}
+          >
+            <Settings className="h-4 w-4 shrink-0" />
+            <span>資訊管理</span>
+          </Link>
+
           {/* 意見回饋 */}
           <button
             onClick={() => setFeedbackOpen(true)}

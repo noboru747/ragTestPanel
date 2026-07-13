@@ -1,6 +1,10 @@
 """
 文件模板管理：CRUD 操作，資料儲存於 PostgreSQL document_templates 表
+內建模板（built-in）從 backend/templates/*.json 讀取，優先於 DB 顯示
 """
+import json
+import os
+import re
 from datetime import datetime
 from uuid import uuid4
 
@@ -11,6 +15,43 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from services.db_service import get_db
 
 router = APIRouter()
+
+# ── Built-in JSON template helpers ─────────────────────────────────────────────
+
+_TMPL_DIR = os.path.normpath(os.path.join(os.path.dirname(__file__), "..", "templates"))
+_SAFE_ID = re.compile(r'^[\w\-]+$')  # alphanumeric, dash, underscore only
+
+
+def _load_builtin_templates() -> list[dict]:
+    """掃描 backend/templates/*.json，回傳所有內建模板清單"""
+    templates = []
+    if not os.path.isdir(_TMPL_DIR):
+        return templates
+    for fname in sorted(os.listdir(_TMPL_DIR)):
+        if not fname.endswith(".json"):
+            continue
+        fpath = os.path.join(_TMPL_DIR, fname)
+        try:
+            with open(fpath, encoding="utf-8") as f:
+                data = json.load(f)
+            templates.append(data)
+        except (json.JSONDecodeError, OSError):
+            pass
+    return templates
+
+
+def _load_builtin_by_id(template_id: str) -> dict | None:
+    """根據 ID 讀取單一內建模板；ID 不合法或找不到時回傳 None"""
+    if not _SAFE_ID.match(template_id):
+        return None
+    fpath = os.path.join(_TMPL_DIR, f"{template_id}.json")
+    if not os.path.isfile(fpath):
+        return None
+    try:
+        with open(fpath, encoding="utf-8") as f:
+            return json.load(f)
+    except (json.JSONDecodeError, OSError):
+        return None
 
 
 def _gen_id() -> str:
@@ -31,11 +72,17 @@ def _row_to_dict(row) -> dict:
 
 @router.get("")
 async def list_templates(db: AsyncSession = Depends(get_db)):
+    # 內建 JSON 模板（built-in，優先置頂）
+    builtin = _load_builtin_templates()
+    builtin_ids = {t["id"] for t in builtin}
+
+    # DB 使用者自建模板（排除與內建同 ID 的，避免重複）
     result = await db.execute(
         text("SELECT id, name, fields, created_at, updated_at FROM document_templates ORDER BY created_at DESC")
     )
-    rows = result.fetchall()
-    return {"templates": [_row_to_dict(r) for r in rows]}
+    db_rows = [_row_to_dict(r) for r in result.fetchall() if r.id not in builtin_ids]
+
+    return {"templates": [*builtin, *db_rows]}
 
 
 # ── CREATE ─────────────────────────────────────────────────────────────────────
@@ -69,6 +116,12 @@ async def create_template(payload: dict, db: AsyncSession = Depends(get_db)):
 
 @router.get("/{tmpl_id}")
 async def get_template(tmpl_id: str, db: AsyncSession = Depends(get_db)):
+    # 先查內建 JSON 模板
+    builtin = _load_builtin_by_id(tmpl_id)
+    if builtin:
+        return builtin
+
+    # 再查 DB
     result = await db.execute(
         text("SELECT id, name, fields, created_at, updated_at FROM document_templates WHERE id = :id"),
         {"id": tmpl_id},

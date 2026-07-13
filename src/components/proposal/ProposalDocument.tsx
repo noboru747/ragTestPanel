@@ -1,5 +1,6 @@
 'use client';
 
+
 export interface ProposalData {
   courtName: string;
   caseTitle: string;
@@ -14,6 +15,7 @@ export interface ProposalData {
   hrPlan: HrPlan;
   companyProfile: CompanyProfile;
   pricing: Pricing;
+  pageBreaks?: string[]  // 記錄哪些 slotId 被標記為強制頁末
 }
 
 export interface SummaryItem {
@@ -93,6 +95,7 @@ interface ProposalDocumentProps {
   onImageRemove?: (slotId: string, idx: number) => void;
   onImageUpdate?: (slotId: string, idx: number, updates: Partial<InsertedImage>) => void;
   onSectionEdit?: (sectionId: string) => void;
+  onPageBreakToggle?: (slotId: string) => void;
   pageNumPos?: 'left' | 'center' | 'right' | 'none';
   showBlankAfterToc?: boolean;
 }
@@ -119,6 +122,8 @@ function ImageSlot({
   onInsert,
   onRemove,
   onUpdate,
+  pageBreaks = [],
+  onPageBreakToggle,
 }: {
   slotId: string;
   allImages?: InsertedImage[];
@@ -126,9 +131,12 @@ function ImageSlot({
   onInsert?: (slotId: string, file: File) => void;
   onRemove?: (slotId: string, idx: number) => void;
   onUpdate?: (slotId: string, idx: number, updates: Partial<InsertedImage>) => void;
+  pageBreaks?: string[];
+  onPageBreakToggle?: (slotId: string) => void;
 }) {
   const images = allImages.filter(img => img.id === slotId);
-  if (!editMode && images.length === 0) return null;
+  const hasBreak = pageBreaks.includes(slotId);
+  if (!editMode && images.length === 0 && !hasBreak) return null;
 
   return (
     <div className={`my-4 ${editMode ? 'border border-dashed border-blue-200 rounded-lg p-3' : ''}`}>
@@ -204,29 +212,36 @@ function ImageSlot({
           />
         </label>
       )}
+
+      {/* 分頁切換按鈕：僅編輯模式顯示 */}
+      {editMode && (
+        <div className="no-print mt-2 flex">
+          <button
+            onClick={() => onPageBreakToggle?.(slotId)}
+            className={`text-xs px-3 py-1 rounded border transition ${
+              hasBreak
+                ? 'border-orange-400 text-orange-600 bg-orange-50 hover:bg-orange-100'
+                : 'border-dashed border-gray-400 text-gray-500 hover:border-gray-600 hover:text-gray-700'
+            }`}
+          >
+            {hasBreak ? '✕ 取消分頁' : '＋ 在此分頁'}
+          </button>
+        </div>
+      )}
+
+      {/* 強制分頁標記：有標記時不論模式都顯示 */}
+      {hasBreak && (
+        <div className="break-after-page">
+          <div className="no-print -mx-16 mt-4 mb-0 h-8 bg-orange-500 flex items-center justify-center gap-2">
+            <span className="text-[10px] text-white tracking-[3px] font-medium">強制分頁</span>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
 
-export default function ProposalDocument({ data, images = [], editMode, onImageInsert, onImageRemove, onImageUpdate, onSectionEdit, pageNumPos = 'center', showBlankAfterToc = false }: ProposalDocumentProps) {
-  /* 分頁視覺提示（僅在瀏覽器顯示，列印時隱藏） */
-  const PageBreak = () => (
-    <div className="no-print -mx-16 -mt-12 mb-8 h-7 bg-gray-600 flex items-center justify-center">
-      <span className="text-[10px] text-gray-400 tracking-[3px]">分頁</span>
-    </div>
-  )
-
-  /* 頁碼 Footer（列印 + 預覽均顯示） */
-  const PageFooter = ({ pageNum }: { pageNum: number }) => {
-    if (pageNumPos === 'none') return null
-    const alignClass = pageNumPos === 'left' ? 'text-left' : pageNumPos === 'right' ? 'text-right' : 'text-center'
-    return (
-      <div className={`mt-10 pt-2 border-t border-gray-300 text-xs text-gray-400 ${alignClass}`}>
-        — {pageNum} —
-      </div>
-    )
-  }
-
+export default function ProposalDocument({ data, images = [], editMode, onImageInsert, onImageRemove, onImageUpdate, onSectionEdit, onPageBreakToggle, pageNumPos = 'center', showBlankAfterToc = false }: ProposalDocumentProps) {
   const EditBtn = ({ id, label }: { id: string; label: string }) =>
     onSectionEdit ? (
       <button
@@ -249,10 +264,19 @@ export default function ProposalDocument({ data, images = [], editMode, onImageI
       onInsert={onImageInsert}
       onRemove={onImageRemove}
       onUpdate={onImageUpdate}
+      pageBreaks={data.pageBreaks}
+      onPageBreakToggle={onPageBreakToggle}
     />
   );
 
   return (
+    <>
+    <style>{`
+      @media print {
+        .page { min-height: 0 !important; }
+        .page + .page { break-before: page; page-break-before: always; }
+      }
+    `}</style>
     <div className="proposal-document bg-white text-gray-900 font-serif" style={{ fontFamily: '"標楷體", "DFKai-SB", serif', fontSize: '12pt', lineHeight: '1.8' }}>
 
       {/* ===== 封面 ===== */}
@@ -313,16 +337,11 @@ export default function ProposalDocument({ data, images = [], editMode, onImageI
       {/* ===== 目錄後空白頁（選填）===== */}
       {showBlankAfterToc && (
         <section className="page py-12 px-16 print:page-break-before-always" style={{ minHeight: '842px' }}>
-          <PageBreak />
-          <div className="no-print flex items-center justify-center h-64 text-xs text-gray-300 border border-dashed border-gray-300 rounded mt-8">
-            空白頁（列印時保留，僅做分隔用）
-          </div>
         </section>
       )}
 
       {/* ===== 壹、總論 ===== */}
       <section className="page section-page py-12 px-16 print:page-break-before-always">
-        <PageBreak />
         <h2 className="text-xl font-bold mb-6 flex items-center gap-2">
           <span className="bg-gray-800 text-white px-3 py-1">壹</span>
           <span>總論</span>
@@ -349,12 +368,10 @@ export default function ProposalDocument({ data, images = [], editMode, onImageI
           </tbody>
         </table>
         {slot('after-summary')}
-        <PageFooter pageNum={1} />
       </section>
 
       {/* ===== 貳、專案概述 ===== */}
       <section className="page section-page py-12 px-16 print:page-break-before-always">
-        <PageBreak />
         <h2 className="text-xl font-bold mb-6 flex items-center gap-2">
           <span className="bg-gray-800 text-white px-3 py-1">貳</span>
           <span>專案概述</span>
@@ -393,13 +410,11 @@ export default function ProposalDocument({ data, images = [], editMode, onImageI
               </div>
             ))}
           </div>
-          <PageFooter pageNum={2} />
         </div>
       </section>
 
       {/* ===== 參、人力規劃 ===== */}
       <section className="page section-page py-12 px-16 print:page-break-before-always">
-        <PageBreak />
         <h2 className="text-xl font-bold mb-6 flex items-center gap-2">
           <span className="bg-gray-800 text-white px-3 py-1">參</span>
           <span>專案管理之人力規劃配置</span>
@@ -439,13 +454,11 @@ export default function ProposalDocument({ data, images = [], editMode, onImageI
             <p className="pl-4 whitespace-pre-line">{data.hrPlan?.qualityManagement}</p>
             {slot('after-quality')}
           </div>
-          <PageFooter pageNum={3} />
         </div>
       </section>
 
       {/* ===== 肆、公司實績 ===== */}
       <section className="page section-page py-12 px-16 print:page-break-before-always">
-        <PageBreak />
         <h2 className="text-xl font-bold mb-6 flex items-center gap-2">
           <span className="bg-gray-800 text-white px-3 py-1">肆</span>
           <span>公司履約實績及經營現況</span>
@@ -487,14 +500,11 @@ export default function ProposalDocument({ data, images = [], editMode, onImageI
             </table>
             {slot('after-experiences')}
           </div>
-          <PageFooter pageNum={4} />
         </div>
       </section>
 
       {/* ===== 伍、價格分析 ===== */}
-
       <section className="page section-page py-12 px-16 print:page-break-before-always">
-        <PageBreak />
         <h2 className="text-xl font-bold mb-6 flex items-center gap-2">
           <span className="bg-gray-800 text-white px-3 py-1">伍</span>
           <span>價格分析</span>
@@ -536,10 +546,10 @@ export default function ProposalDocument({ data, images = [], editMode, onImageI
             </table>
             {slot('after-pricing')}
           </div>
-          <PageFooter pageNum={5} />
         </div>
       </section>
 
     </div>
+    </>
   );
 }
