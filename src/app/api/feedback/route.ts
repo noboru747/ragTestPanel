@@ -13,8 +13,9 @@ export async function POST(req: NextRequest) {
       body: JSON.stringify(body),
     })
     return NextResponse.json(await res.json(), { status: res.status })
-  } catch {
-    return NextResponse.json({ ok: false, error: "無法連線至後端" }, { status: 503 })
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err)
+    return NextResponse.json({ ok: false, error: msg, backend: BACKEND }, { status: 503 })
   }
 }
 
