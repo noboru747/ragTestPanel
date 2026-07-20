@@ -1,6 +1,6 @@
-export const runtime = 'edge'
-
 "use client"
+
+export const runtime = 'edge'
 
 import { useState, useRef, useEffect, useCallback } from "react"
 import { Card, CardContent } from "@/components/ui/card"
