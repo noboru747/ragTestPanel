@@ -1,10 +1,9 @@
 import type { Metadata } from "next"
-import { Geist } from "next/font/google"
 import "./globals.css"
 import { AppSidebar } from "@/components/layout/AppSidebar"
 import { TooltipProvider } from "@/components/ui/tooltip"
 
-const geist = Geist({ subsets: ["latin"] })
+export const runtime = 'edge'
 
 export const metadata: Metadata = {
   title: "PM 知識管理系統",
@@ -14,7 +13,7 @@ export const metadata: Metadata = {
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="zh-TW">
-      <body className={geist.className}>
+      <body>
         <TooltipProvider>
           <div className="flex h-screen overflow-hidden bg-background">
             <AppSidebar />
