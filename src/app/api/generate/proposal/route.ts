@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server"
 
-export const maxDuration = 30 // Vercel Hobby 最大 30s
+export const runtime = 'edge'
 
 const BACKEND = process.env.BACKEND_URL ?? "http://localhost:8000"
 

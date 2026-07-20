@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from "next/server"
 import { mockGitRepo } from "@/lib/mock-data"
 
+export const runtime = 'edge'
+
 const templates: Record<string, (project: string, features: string[]) => string> = {
   meeting: (project, features) => `## 週例會議程 — ${project}
 
