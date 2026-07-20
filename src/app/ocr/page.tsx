@@ -104,6 +104,19 @@ function OcrPageInner() {
       read()
     })
 
+  const addFiles = (files: File[]) => {
+    const newItems: OcrItem[] = files.map((f) => ({
+      id: `ocr-${Date.now()}-${Math.random().toString(36).slice(2)}`,
+      filename: f.name,
+      status: "queued",
+      progress: 0,
+      model: "qwen2.5vl:7b",
+      extractedChars: null,
+      file: f,
+    }))
+    setQueue((prev) => [...newItems, ...prev])
+  }
+
   const handleDrop = useCallback(async (e: React.DragEvent) => {
     e.preventDefault()
     setDragging(false)
@@ -126,19 +139,6 @@ function OcrPageInner() {
   const handleFileInput = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files) addFiles(Array.from(e.target.files).filter((f) => isAccepted(f.name)))
     e.target.value = ""
-  }
-
-  const addFiles = (files: File[]) => {
-    const newItems: OcrItem[] = files.map((f) => ({
-      id: `ocr-${Date.now()}-${Math.random().toString(36).slice(2)}`,
-      filename: f.name,
-      status: "queued",
-      progress: 0,
-      model: "qwen2.5vl:7b",
-      extractedChars: null,
-      file: f,
-    }))
-    setQueue((prev) => [...newItems, ...prev])
   }
 
   const remove = (id: string) =>
