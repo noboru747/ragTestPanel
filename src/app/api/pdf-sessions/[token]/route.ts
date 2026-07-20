@@ -1,6 +1,8 @@
 import { NextResponse } from "next/server"
 import { getPdfSession } from "@/lib/pdf-sessions"
 
+export const runtime = 'edge'
+
 export async function GET(
   _req: Request,
   { params }: { params: Promise<{ token: string }> }

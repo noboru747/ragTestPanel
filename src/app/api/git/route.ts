@@ -1,4 +1,6 @@
-import { NextRequest, NextResponse } from "next/server"
+﻿import { NextRequest, NextResponse } from "next/server"
+
+export const runtime = 'edge'
 import { mockGitRepo } from "@/lib/mock-data"
 
 export async function POST(req: NextRequest) {
@@ -6,7 +8,7 @@ export async function POST(req: NextRequest) {
   await new Promise((r) => setTimeout(r, 1500))
 
   if (!url || !url.startsWith("http")) {
-    return NextResponse.json({ error: "無效的 Git URL" }, { status: 400 })
+    return NextResponse.json({ error: "?⊥???Git URL" }, { status: 400 })
   }
 
   return NextResponse.json({

@@ -1,3 +1,5 @@
+export const runtime = 'edge'
+
 "use client"
 
 import { useEffect, useRef, useState } from "react"

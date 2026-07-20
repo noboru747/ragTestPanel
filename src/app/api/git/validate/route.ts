@@ -1,11 +1,13 @@
-import { NextRequest, NextResponse } from "next/server"
+﻿import { NextRequest, NextResponse } from "next/server"
+
+export const runtime = 'edge'
 
 const BACKEND = process.env.BACKEND_URL ?? "http://localhost:8000"
 
 export async function GET(req: NextRequest) {
   const url = req.nextUrl.searchParams.get("url") ?? ""
   if (!url) {
-    return NextResponse.json({ valid: false, reason: "缺少 url 參數" })
+    return NextResponse.json({ valid: false, reason: "蝻箏? url ?" })
   }
   try {
     const res = await fetch(
@@ -14,6 +16,6 @@ export async function GET(req: NextRequest) {
     )
     return NextResponse.json(await res.json())
   } catch {
-    return NextResponse.json({ valid: false, reason: "驗證服務無法連線" })
+    return NextResponse.json({ valid: false, reason: "撽????⊥????" })
   }
 }
