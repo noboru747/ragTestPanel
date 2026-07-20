@@ -7,7 +7,7 @@ app = FastAPI(title="RGA KM Backend", version="0.1.0")
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:3000", "https://*.vercel.app"],
+    allow_origins=["http://localhost:3000", "https://*.vercel.app", "https://*.pages.dev"],
     allow_methods=["*"],
     allow_headers=["*"],
 )
