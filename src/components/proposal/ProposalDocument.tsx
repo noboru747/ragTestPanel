@@ -241,20 +241,23 @@ function ImageSlot({
   );
 }
 
+function EditBtn({ id, label, onSectionEdit }: { id: string; label: string; onSectionEdit?: (id: string) => void }) {
+  if (!onSectionEdit) return null;
+  return (
+    <button
+      onClick={() => onSectionEdit(id)}
+      className="no-print inline-flex items-center gap-1 ml-2 px-2 py-0.5 text-xs bg-amber-50 hover:bg-amber-100 text-amber-600 border border-amber-200 rounded transition align-middle"
+      title={`編輯${label}`}
+    >
+      <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+      </svg>
+      編輯
+    </button>
+  );
+}
+
 export default function ProposalDocument({ data, images = [], editMode, onImageInsert, onImageRemove, onImageUpdate, onSectionEdit, onPageBreakToggle, pageNumPos = 'center', showBlankAfterToc = false }: ProposalDocumentProps) {
-  const EditBtn = ({ id, label }: { id: string; label: string }) =>
-    onSectionEdit ? (
-      <button
-        onClick={() => onSectionEdit(id)}
-        className="no-print inline-flex items-center gap-1 ml-2 px-2 py-0.5 text-xs bg-amber-50 hover:bg-amber-100 text-amber-600 border border-amber-200 rounded transition align-middle"
-        title={`編輯${label}`}
-      >
-        <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
-        </svg>
-        編輯
-      </button>
-    ) : null
 
   const slot = (slotId: string) => (
     <ImageSlot
@@ -283,7 +286,7 @@ export default function ProposalDocument({ data, images = [], editMode, onImageI
       <section className="page cover-page flex flex-col items-center justify-center min-h-screen border-b-2 border-gray-300 py-16 print:min-h-screen relative">
         {onSectionEdit && (
           <div className="no-print absolute top-4 right-4">
-            <EditBtn id="cover" label="封面資訊" />
+            <EditBtn id="cover" label="封面資訊" onSectionEdit={onSectionEdit} />
           </div>
         )}
         <div className="text-center space-y-4">
@@ -347,7 +350,7 @@ export default function ProposalDocument({ data, images = [], editMode, onImageI
           <span>總論</span>
         </h2>
         <h3 className="text-lg font-bold mb-4">
-          一、建議書摘要表<EditBtn id="summary" label="摘要表" />
+          一、建議書摘要表<EditBtn id="summary" label="摘要表" onSectionEdit={onSectionEdit} />
         </h3>
         <table className="w-full border-collapse text-sm">
           <thead>
@@ -383,14 +386,14 @@ export default function ProposalDocument({ data, images = [], editMode, onImageI
           </div>
           <div>
             <h3 className="text-base font-bold mb-2">
-              二、履約標的<EditBtn id="scope" label="履約標的" />
+              二、履約標的<EditBtn id="scope" label="履約標的" onSectionEdit={onSectionEdit} />
             </h3>
             <p className="pl-4 whitespace-pre-line">{data.projectOverview?.scope}</p>
             {slot('after-scope')}
           </div>
           <div>
             <h3 className="text-base font-bold mb-2">
-              三、需求目標<EditBtn id="objectives" label="需求目標" />
+              三、需求目標<EditBtn id="objectives" label="需求目標" onSectionEdit={onSectionEdit} />
             </h3>
             <ul className="pl-8 list-disc space-y-1">
               {(data.projectOverview?.objectives ?? []).map((obj, i) => (
@@ -400,7 +403,7 @@ export default function ProposalDocument({ data, images = [], editMode, onImageI
           </div>
           <div>
             <h3 className="text-base font-bold mb-2">
-              四、履約之工作要項<EditBtn id="workItems" label="工作要項" />
+              四、履約之工作要項<EditBtn id="workItems" label="工作要項" onSectionEdit={onSectionEdit} />
             </h3>
             {(data.projectOverview?.workItems ?? []).map((item, i) => (
               <div key={i} className="mb-2">
@@ -422,7 +425,7 @@ export default function ProposalDocument({ data, images = [], editMode, onImageI
         <div className="space-y-6">
           <div>
             <h3 className="text-base font-bold mb-2">
-              一、執行本專案之組織、分工<EditBtn id="hrPlan" label="人力配置" />
+              一、執行本專案之組織、分工<EditBtn id="hrPlan" label="人力配置" onSectionEdit={onSectionEdit} />
             </h3>
             <p className="pl-4 mb-4 whitespace-pre-line">{data.hrPlan?.teamStructure}</p>
             <table className="w-full border-collapse text-sm">
@@ -449,7 +452,7 @@ export default function ProposalDocument({ data, images = [], editMode, onImageI
           </div>
           <div>
             <h3 className="text-base font-bold mb-2">
-              二、品質保證管理<EditBtn id="quality" label="品質管理" />
+              二、品質保證管理<EditBtn id="quality" label="品質管理" onSectionEdit={onSectionEdit} />
             </h3>
             <p className="pl-4 whitespace-pre-line">{data.hrPlan?.qualityManagement}</p>
             {slot('after-quality')}
@@ -466,7 +469,7 @@ export default function ProposalDocument({ data, images = [], editMode, onImageI
         <div className="space-y-6">
           <div>
             <h3 className="text-base font-bold mb-2">
-              一、公司基本資料<EditBtn id="company" label="公司資料" />
+              一、公司基本資料<EditBtn id="company" label="公司資料" onSectionEdit={onSectionEdit} />
             </h3>
             <div className="pl-4 space-y-1 text-sm">
               <p>成立年份：{data.companyProfile?.established}</p>
@@ -512,7 +515,7 @@ export default function ProposalDocument({ data, images = [], editMode, onImageI
         <div className="space-y-6">
           <div>
             <h3 className="text-base font-bold mb-2">
-              一、本專案所列人力計費標準<EditBtn id="pricing" label="價格分析" />
+              一、本專案所列人力計費標準<EditBtn id="pricing" label="價格分析" onSectionEdit={onSectionEdit} />
             </h3>
             <p className="pl-4 text-sm whitespace-pre-line">{data.pricing?.basis}</p>
           </div>
