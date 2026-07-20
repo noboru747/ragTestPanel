@@ -1,7 +1,41 @@
-import { type ProposalData, type InsertedImage } from "@/components/proposal/ProposalDocument"
+async function getHtmlForPdf(element: HTMLElement): Promise<string> {
+  // Inline all <style> tags from document head
+  const styles = Array.from(document.querySelectorAll("style"))
+    .map((s) => s.outerHTML)
+    .join("\n")
 
-export async function printProposalPdf(data: ProposalData, images: InsertedImage[] = []): Promise<void> {
-  // 在 user gesture 同步階段先開好視窗，避免 async 後被 popup blocker 攔截
+  // Fetch and inline any linked stylesheets (same origin)
+  const linkTags = Array.from(
+    document.querySelectorAll<HTMLLinkElement>('link[rel="stylesheet"]')
+  )
+  const inlinedLinks = await Promise.all(
+    linkTags.map(async (link) => {
+      try {
+        const css = await fetch(link.href).then((r) => r.text())
+        return `<style>${css}</style>`
+      } catch {
+        return ""
+      }
+    })
+  )
+
+  return `<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+${styles}
+${inlinedLinks.join("\n")}
+<style>
+  @media print {
+    body { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+  }
+</style>
+</head>
+<body style="margin:0;padding:0">${element.outerHTML}</body>
+</html>`
+}
+
+export async function printProposalPdf(element: HTMLElement, filename = "proposal"): Promise<void> {
   const win = window.open("", "_blank")
   if (win) {
     win.document.write(`<!DOCTYPE html><html><head><meta charset="UTF-8"><title>PDF 產生中...</title></head>
@@ -13,31 +47,33 @@ export async function printProposalPdf(data: ProposalData, images: InsertedImage
       </path>
     </svg>
     <div style="font-size:1.1rem;font-weight:500;">PDF 產生中，請稍候...</div>
-    <div style="font-size:0.85rem;color:#9ca3af;">Chromium 正在渲染文件</div>
+    <div style="font-size:0.85rem;color:#9ca3af;">後端正在渲染文件</div>
   </div>
 </body></html>`)
     win.document.close()
   }
 
+  const html = await getHtmlForPdf(element)
   const res = await fetch("/api/generate/pdf", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ ...data, images }),
+    body: JSON.stringify({ html, filename }),
   })
+
   if (!res.ok) {
     win?.close()
     throw new Error("PDF generation failed")
   }
+
   const blob = await res.blob()
   const url = URL.createObjectURL(blob)
 
   if (win) {
     win.location.href = url
   } else {
-    // fallback：popup 被攔時改成下載
     const a = document.createElement("a")
     a.href = url
-    a.download = "proposal.pdf"
+    a.download = `${filename}.pdf`
     document.body.appendChild(a)
     a.click()
     document.body.removeChild(a)
@@ -45,18 +81,19 @@ export async function printProposalPdf(data: ProposalData, images: InsertedImage
   setTimeout(() => URL.revokeObjectURL(url), 5000)
 }
 
-export async function downloadProposalPdf(data: ProposalData, images: InsertedImage[] = []): Promise<void> {
+export async function downloadProposalPdf(element: HTMLElement, filename = "proposal"): Promise<void> {
+  const html = await getHtmlForPdf(element)
   const res = await fetch("/api/generate/pdf", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ ...data, images }),
+    body: JSON.stringify({ html, filename }),
   })
   if (!res.ok) throw new Error("PDF generation failed")
   const blob = await res.blob()
   const url = URL.createObjectURL(blob)
   const a = document.createElement("a")
   a.href = url
-  a.download = `${(data as unknown as Record<string, string>)["案號"] || "proposal"}.pdf`
+  a.download = `${filename}.pdf`
   document.body.appendChild(a)
   a.click()
   document.body.removeChild(a)

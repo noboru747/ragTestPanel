@@ -1,9 +1,10 @@
 import os
 from typing import List, Optional
 
-from fastapi import APIRouter
+from fastapi import APIRouter, HTTPException
 from fastapi.responses import Response
 from pydantic import BaseModel
+from playwright.async_api import async_playwright
 
 router = APIRouter()
 
@@ -123,4 +124,38 @@ def generate_pdf(data: ProposalRequest):
         content=pdf_bytes,
         media_type="application/pdf",
         headers={"Content-Disposition": "inline; filename=proposal.pdf"},
+    )
+
+
+# ── Playwright HTML → PDF ──────────────────────────────────────────────────────
+
+@router.post("/from-html")
+async def generate_pdf_from_html(payload: dict):
+    """接收完整 HTML 字串，用 Playwright Chromium 渲染後回傳 PDF binary。
+    Request body: { "html": "<完整 HTML>", "filename": "optional.pdf" }
+    """
+    html = payload.get("html", "")
+    if not html:
+        raise HTTPException(status_code=422, detail="html is required")
+
+    filename = payload.get("filename", "proposal.pdf")
+
+    async with async_playwright() as p:
+        browser = await p.chromium.launch()
+        try:
+            page = await browser.new_page()
+            await page.emulate_media(media="print")
+            await page.set_content(html, wait_until="domcontentloaded")
+            pdf_bytes = await page.pdf(
+                format="A4",
+                print_background=True,
+                margin={"top": "2cm", "right": "2.5cm", "bottom": "2.5cm", "left": "2.5cm"},
+            )
+        finally:
+            await browser.close()
+
+    return Response(
+        content=pdf_bytes,
+        media_type="application/pdf",
+        headers={"Content-Disposition": f"inline; filename={filename}"},
     )

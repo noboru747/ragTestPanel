@@ -1,52 +1,33 @@
-import { NextResponse } from "next/server"
-import { createPdfSession } from "@/lib/pdf-sessions"
+import { NextRequest, NextResponse } from "next/server"
 
-export async function POST(req: Request) {
-  const body = await req.json()
-  const { images, pageNumPos, showBlankAfterToc, ...proposalData } = body
+export const runtime = 'edge'
 
-  const token = createPdfSession({
-    proposalData,
-    images: images ?? [],
-    pageNumPos: pageNumPos ?? "center",
-    showBlankAfterToc: showBlankAfterToc ?? false,
-  })
+const BACKEND = process.env.BACKEND_URL ?? "http://localhost:8000"
 
-  const { chromium } = await import("playwright")
-  const browser = await chromium.launch().catch((err: Error) => {
-    throw new Error(`Playwright launch failed: ${err.message}`)
-  })
+export async function POST(req: NextRequest) {
   try {
-    const page = await browser.newPage()
-    // 讓 Playwright 以 print media 渲染（讓 @media print 的 CSS 生效）
-    await page.emulateMedia({ media: "print" })
-    const baseUrl = process.env.NEXTAUTH_URL || process.env.NEXT_PUBLIC_BASE_URL || "http://localhost:3001"
-    await page.goto(`${baseUrl}/generate/preview?token=${token}`, {
-      waitUntil: "networkidle",
+    const body = await req.json()
+    const res = await fetch(`${BACKEND}/api/generate/pdf/from-html`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+      signal: AbortSignal.timeout(60_000),
     })
-    // 等 ProposalDocument 渲染完並設好 ready 標記
-    await page.waitForSelector('[data-pdf-ready="1"]', { timeout: 30_000 })
-
-    const pdfBuffer = await page.pdf({
-      format: "A4",
-      margin: { top: "2cm", right: "2.5cm", bottom: "2.5cm", left: "2.5cm" },
-      printBackground: true,
-    })
-    const pdf = new Uint8Array(pdfBuffer)
-
-    return new NextResponse(pdf, {
+    if (!res.ok) {
+      const err = await res.text()
+      return NextResponse.json({ error: err }, { status: res.status })
+    }
+    const pdfBuffer = await res.arrayBuffer()
+    return new NextResponse(pdfBuffer, {
       headers: {
         "Content-Type": "application/pdf",
-        "Content-Disposition": "inline; filename=proposal.pdf",
+        "Content-Disposition": res.headers.get("Content-Disposition") ?? "inline; filename=proposal.pdf",
       },
     })
   } catch (err) {
-    console.error("[pdf/route] PDF generation error:", err)
-    return new NextResponse(
-      JSON.stringify({ error: err instanceof Error ? err.message : String(err) }),
-      { status: 500, headers: { "Content-Type": "application/json" } }
+    return NextResponse.json(
+      { error: err instanceof Error ? err.message : String(err) },
+      { status: 500 }
     )
-  } finally {
-    await browser.close()
   }
 }

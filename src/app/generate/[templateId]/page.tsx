@@ -113,6 +113,7 @@ export default function GenerateFromTemplatePage({
   }
 
   const previewRef = useRef<HTMLDivElement>(null)
+  const proposalDocRef = useRef<HTMLDivElement>(null)
   const autoFilledFields = useRef<Set<string>>(new Set())
   const sessionDraftId = useRef<string>(String(Date.now()))
 
@@ -270,9 +271,10 @@ export default function GenerateFromTemplatePage({
   /* ── PDF helpers ──────────────────────────────────────────────── */
   const handlePreviewPDF = async () => {
     if (!proposalData || pdfLoading !== null) return
+    if (!proposalDocRef.current) { alert("建議書尚未渲染"); return }
     setPdfLoading("preview")
     try {
-      await printProposalPdf(proposalData, images)
+      await printProposalPdf(proposalDocRef.current, form["案號"] || "proposal")
     } catch {
       alert("PDF 產生失敗，請稍後再試")
     } finally {
@@ -281,9 +283,10 @@ export default function GenerateFromTemplatePage({
   }
   const handleDownloadPDF = async () => {
     if (!proposalData || pdfLoading !== null) return
+    if (!proposalDocRef.current) { alert("建議書尚未渲染"); return }
     setPdfLoading("download")
     try {
-      await downloadProposalPdf(proposalData, images)
+      await downloadProposalPdf(proposalDocRef.current, form["案號"] || "proposal")
     } catch {
       alert("PDF 產生失敗，請稍後再試")
     } finally {
@@ -965,7 +968,7 @@ export default function GenerateFromTemplatePage({
               </label>
             </div>
 
-            <div id="proposal-pdf-target" className="p-6">
+            <div id="proposal-pdf-target" ref={proposalDocRef} className="p-6">
               <ProposalDocument
                 data={proposalData}
                 images={images}
