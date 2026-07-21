@@ -8,14 +8,18 @@ const isLocal = BACKEND.includes("localhost")
 export async function GET() {
   try {
     const res = await fetch(`${BACKEND}/api/projects`, { cache: "no-store" })
-    if (!res.ok) throw new Error(await res.text())
+    if (!res.ok) {
+      const errText = await res.text()
+      return NextResponse.json({ projects: [], stats: null, _debug: { backend: BACKEND, status: res.status, error: errText } })
+    }
     return NextResponse.json(await res.json())
-  } catch {
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err)
     if (isLocal) {
       const { mockProjects, mockStats } = await import("@/lib/mock-data")
       return NextResponse.json({ projects: mockProjects, stats: mockStats })
     }
-    return NextResponse.json({ projects: [], stats: null })
+    return NextResponse.json({ projects: [], stats: null, _debug: { backend: BACKEND, error: msg } })
   }
 }
 
