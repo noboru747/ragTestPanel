@@ -13,8 +13,8 @@ export async function GET(
   try {
     // 從後端取專案資訊 + 該專案的文件列表
     const [projRes, docsRes] = await Promise.all([
-      fetch(`${BACKEND}/api/projects`, { cache: "no-store" }),
-      fetch(`${BACKEND}/api/documents/list?project_id=${id}`, { cache: "no-store" }),
+      fetch(`${BACKEND}/api/projects`),
+      fetch(`${BACKEND}/api/documents/list?project_id=${id}`),
     ])
     const { projects } = await projRes.json()
     const project = projects.find((p: { id: string }) => p.id === id)

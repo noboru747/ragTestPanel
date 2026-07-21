@@ -10,7 +10,7 @@ export async function GET(
 ) {
   const { id } = await params
   try {
-    const res = await fetch(`${BACKEND}/api/templates/${id}`, { cache: "no-store" })
+    const res = await fetch(`${BACKEND}/api/templates/${id}`)
     if (!res.ok) throw new Error(await res.text())
     return NextResponse.json(await res.json())
   } catch {

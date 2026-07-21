@@ -6,7 +6,7 @@ const BACKEND = process.env.BACKEND_URL ?? "http://localhost:8000"
 
 export async function GET() {
   try {
-    const res = await fetch(`${BACKEND}/api/templates`, { cache: "no-store" })
+    const res = await fetch(`${BACKEND}/api/templates`)
     if (!res.ok) throw new Error(await res.text())
     return NextResponse.json(await res.json())
   } catch {
