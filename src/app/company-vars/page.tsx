@@ -2,6 +2,7 @@
 
 export const runtime = 'edge'
 
+import { InlineSpinner, ListSkeleton } from "@/components/loading"
 import { useEffect, useState } from "react"
 import { Trash2, RefreshCw, Plus } from "lucide-react"
 import { getAutoFillLabel } from "@/lib/companyVarsMap"
@@ -284,7 +285,7 @@ export default function CompanyVarsPage() {
 
       {/* 全域變數清單 */}
       {loading ? (
-        <div className="text-center py-16 text-muted-foreground text-sm">載入中...</div>
+        <ListSkeleton rows={4} variant="row" label="常駐變數載入中…" />
       ) : vars.length === 0 ? (
         <div className="text-center py-16 text-muted-foreground text-sm">尚無常駐變數</div>
       ) : (
@@ -389,7 +390,7 @@ export default function CompanyVarsPage() {
       <div className="bg-white border border-gray-200 rounded-xl p-5 space-y-3">
         <p className="text-sm font-semibold text-gray-700">選擇專案</p>
         {projects.length === 0 ? (
-          <p className="text-xs text-muted-foreground">（載入專案清單中...）</p>
+          <InlineSpinner label="載入專案中…" className="text-xs text-muted-foreground" iconClassName="h-3.5 w-3.5" />
         ) : (
           <select
             value={selectedProjId}
@@ -437,7 +438,7 @@ export default function CompanyVarsPage() {
       {/* 專案變數清單 */}
       {selectedProjId && (
         projLoading ? (
-          <div className="text-center py-10 text-muted-foreground text-sm">載入中...</div>
+          <ListSkeleton rows={3} variant="row" label="專案變數載入中…" />
         ) : projVars.length === 0 ? (
           <div className="text-center py-10 text-muted-foreground text-sm">此專案尚無專案變數</div>
         ) : (

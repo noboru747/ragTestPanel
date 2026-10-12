@@ -20,8 +20,16 @@ import {
   Eye,
   ChevronDown,
   FolderKanban,
+  Check,
+  ShieldCheck,
+  Circle,
+  MinusCircle,
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
+import { BackendErrorBanner } from "@/components/backend-error-banner"
+import { fetchJson } from "@/lib/backend-fetch"
+import { formatMaskSummary } from "@/lib/mask"
+import { InlineSpinner } from "@/components/loading"
 type OcrStatus = "queued" | "processing" | "completed" | "error"
 
 type OcrItem = {
@@ -34,6 +42,58 @@ type OcrItem = {
   extractedText?: string
   error?: string
   file: File
+  /** 階段①：掃描遮罩（未勾遮罩時為文字提取） */
+  extractStep: StepState
+  /** 階段②：入庫 */
+  indexStep: StepState
+  /** 處理時是否啟用遮罩（以開始處理當下為準） */
+  maskRequested?: boolean
+  masked?: boolean
+  maskSummary?: Record<string, number>
+  maskTotal?: number
+  /** project：代號已寫入專案對照表；document：僅本文件內編號 */
+  maskScope?: "project" | "document"
+  method?: string
+  extractError?: string
+  indexError?: string
+  /** 階段②略過的原因 */
+  indexSkipReason?: string
+}
+
+/** 單一階段狀態：待處理 / 進行中 / 完成 / 失敗 / 略過 */
+type StepState = "pending" | "running" | "done" | "error" | "skipped"
+
+const MASK_STORAGE_KEY = "ocr.maskEnabled"
+
+async function readError(res: Response, fallback: string) {
+  try {
+    const d = await res.json()
+    const msg = d.error ?? fallback
+    return d.detail ? `${msg}：${d.detail}` : msg
+  } catch {
+    return `${fallback}（HTTP ${res.status}）`
+  }
+}
+
+const stepConfig = {
+  pending: { icon: Circle, cls: "text-muted-foreground border-muted-foreground/30", spin: false },
+  running: { icon: Loader2, cls: "text-blue-600 border-blue-300", spin: true },
+  done: { icon: Check, cls: "text-green-600 border-green-300 bg-green-50 dark:bg-green-950/30", spin: false },
+  error: { icon: X, cls: "text-red-600 border-red-300 bg-red-50 dark:bg-red-950/30", spin: false },
+  skipped: { icon: MinusCircle, cls: "text-muted-foreground border-muted-foreground/30", spin: false },
+} as const
+
+function StepChip({ state, label }: { state: StepState; label: string }) {
+  const cfg = stepConfig[state]
+  const Icon = cfg.icon
+  return (
+    <span
+      className={`inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[10px] font-medium ${cfg.cls}`}
+    >
+      <Icon className={`h-3 w-3 ${cfg.spin ? "animate-spin" : ""}`} />
+      {label}
+    </span>
+  )
 }
 
 const statusConfig = {
@@ -53,6 +113,27 @@ function OcrPageInner() {
   const [processing, setProcessing] = useState(false)
   const [selectedProjectId, setSelectedProjectId] = useState<string>("")
   const [projects, setProjects] = useState<ProjectOption[]>([])
+  const [projectsError, setProjectsError] = useState<string | null>(null)
+  const [projectsLoading, setProjectsLoading] = useState(true)
+  const [maskEnabled, setMaskEnabled] = useState(true)
+
+  // 遮罩勾選狀態記在 localStorage（讀不到就維持預設勾選）
+  useEffect(() => {
+    try {
+      if (window.localStorage.getItem(MASK_STORAGE_KEY) === "false") setMaskEnabled(false)
+    } catch {
+      /* ignore */
+    }
+  }, [])
+
+  const toggleMask = (v: boolean) => {
+    setMaskEnabled(v)
+    try {
+      window.localStorage.setItem(MASK_STORAGE_KEY, v ? "true" : "false")
+    } catch {
+      /* ignore */
+    }
+  }
 
   // 從 URL query param 預選專案（從專案詳情頁導過來時）
   useEffect(() => {
@@ -61,17 +142,22 @@ function OcrPageInner() {
   }, [searchParams])
 
   // 從後端載入真實專案清單
-  useEffect(() => {
-    fetch("/api/projects")
-      .then((r) => r.json())
-      .then((data) => {
-        const list: ProjectOption[] = (data.projects ?? data ?? []).map(
-          (p: { id: string; name: string }) => ({ id: p.id, name: p.name })
-        )
-        setProjects(list)
-      })
-      .catch(() => {})
+  const loadProjects = useCallback(async () => {
+    setProjectsError(null)
+    setProjectsLoading(true)
+    const { data, error } = await fetchJson<{ projects?: ProjectOption[] }>("/api/projects")
+    setProjectsLoading(false)
+    if (error) {
+      setProjects([])
+      setProjectsError(error)
+      return
+    }
+    setProjects((data?.projects ?? []).map((p) => ({ id: p.id, name: p.name })))
   }, [])
+
+  useEffect(() => {
+    loadProjects()
+  }, [loadProjects])
 
   const acceptedExts = new Set([
     "pdf","doc","docx","xls","xlsx","ppt","pptx","jpg","jpeg","png","gif","webp",
@@ -113,6 +199,8 @@ function OcrPageInner() {
       model: "qwen2.5vl:7b",
       extractedChars: null,
       file: f,
+      extractStep: "pending",
+      indexStep: "pending",
     }))
     setQueue((prev) => [...newItems, ...prev])
   }
@@ -144,56 +232,91 @@ function OcrPageInner() {
   const remove = (id: string) =>
     setQueue((prev) => prev.filter((i) => i.id !== id))
 
+  const patch = (id: string, update: Partial<OcrItem>) =>
+    setQueue((prev) => prev.map((i) => (i.id === id ? { ...i, ...update } : i)))
+
+  // 兩階段：① POST /api/ocr（提取＋遮罩，不入庫） → ② POST /api/documents/index（用遮罩後文字入庫）
   const processQueue = async () => {
     const pending = queue.filter((i) => i.status === "queued")
     if (!pending.length || processing) return
     setProcessing(true)
+    // 以按下「開始處理」當下的設定為準，處理途中切換不影響本批次
+    const mask = maskEnabled
+    const projectId = selectedProjectId
 
     for (const item of pending) {
-      // 設為處理中
-      setQueue((prev) =>
-        prev.map((i) => i.id === item.id ? { ...i, status: "processing", progress: 30 } : i)
-      )
+      patch(item.id, {
+        status: "processing",
+        progress: 20,
+        extractStep: "running",
+        indexStep: "pending",
+        maskRequested: mask,
+        error: undefined,
+        extractError: undefined,
+        indexError: undefined,
+        indexSkipReason: undefined,
+      })
 
+      // ── 階段①：掃描遮罩 / 文字提取 ──
+      let text = ""
       try {
         const form = new FormData()
         form.append("file", item.file, item.filename)
-        if (selectedProjectId) form.append("project_id", selectedProjectId)
+        form.append("mask", mask ? "true" : "false")
+        form.append("index", "false")
+        // 有選專案時一併轉給後端，讓遮罩代號在專案內統一編號並寫入本機對照表
+        if (projectId) form.append("project_id", projectId)
 
         const res = await fetch("/api/ocr", { method: "POST", body: form })
-        const data = await res.json()
+        const data = res.ok ? await res.json() : null
+        if (!res.ok || !data?.success) {
+          const msg = data ? data.error ?? "文字提取失敗" : await readError(res, "文字提取失敗")
+          patch(item.id, { status: "error", progress: 0, extractStep: "error", extractError: msg, error: msg })
+          continue
+        }
+        text = data.text ?? ""
+        patch(item.id, {
+          progress: 60,
+          extractStep: "done",
+          extractedChars: data.char_count ?? text.length,
+          extractedText: text,
+          masked: data.masked === true,
+          maskSummary: data.mask_summary,
+          maskTotal: data.mask_total,
+          maskScope: data.mask_scope === "project" || data.mask_scope === "document" ? data.mask_scope : undefined,
+          method: data.method,
+        })
+      } catch {
+        const msg = "無法連線到伺服器"
+        patch(item.id, { status: "error", progress: 0, extractStep: "error", extractError: msg, error: msg })
+        continue
+      }
 
-        if (!res.ok || !data.success) {
-          setQueue((prev) =>
-            prev.map((i) =>
-              i.id === item.id
-                ? { ...i, status: "error", progress: 0, error: data.error ?? "處理失敗" }
-                : i
-            )
-          )
+      // ── 階段②：入庫 ──
+      if (!projectId) {
+        patch(item.id, { status: "completed", progress: 100, indexStep: "skipped", indexSkipReason: "未指定專案" })
+        continue
+      }
+      if (!text.trim()) {
+        patch(item.id, { status: "completed", progress: 100, indexStep: "skipped", indexSkipReason: "無可入庫文字" })
+        continue
+      }
+      patch(item.id, { progress: 75, indexStep: "running" })
+      try {
+        const res = await fetch("/api/documents/index", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ project_id: projectId, filename: item.filename, text }),
+        })
+        if (!res.ok) {
+          const msg = await readError(res, "入庫失敗")
+          patch(item.id, { status: "error", progress: 0, indexStep: "error", indexError: msg, error: msg })
         } else {
-          setQueue((prev) =>
-            prev.map((i) =>
-              i.id === item.id
-                ? {
-                    ...i,
-                    status: "completed",
-                    progress: 100,
-                    extractedChars: data.char_count,
-                    extractedText: data.text,
-                  }
-                : i
-            )
-          )
+          patch(item.id, { status: "completed", progress: 100, indexStep: "done" })
         }
       } catch {
-        setQueue((prev) =>
-          prev.map((i) =>
-            i.id === item.id
-              ? { ...i, status: "error", progress: 0, error: "網路錯誤" }
-              : i
-          )
-        )
+        const msg = "入庫時無法連線到伺服器"
+        patch(item.id, { status: "error", progress: 0, indexStep: "error", indexError: msg, error: msg })
       }
     }
 
@@ -236,6 +359,8 @@ function OcrPageInner() {
         ))}
       </div>
 
+      <BackendErrorBanner message={projectsError} onRetry={loadProjects} />
+
       {/* 上傳區 */}
       <Card>
         <CardHeader className="pb-3">
@@ -251,16 +376,29 @@ function OcrPageInner() {
                 <select
                   value={selectedProjectId}
                   onChange={(e) => setSelectedProjectId(e.target.value)}
-                  className="appearance-none text-xs border rounded-md px-2.5 py-1 pr-6 bg-background hover:border-primary/50 focus:outline-none focus:ring-1 focus:ring-primary cursor-pointer"
+                  disabled={projectsLoading || processing}
+                  aria-busy={projectsLoading}
+                  className="appearance-none text-xs border rounded-md px-2.5 py-1 pr-6 bg-background hover:border-primary/50 focus:outline-none focus:ring-1 focus:ring-primary cursor-pointer disabled:cursor-wait disabled:opacity-70"
                 >
-                  <option value="">不指定專案（不入庫）</option>
-                  {projects.map((p) => (
-                    <option key={p.id} value={p.id}>
-                      {p.name}
-                    </option>
-                  ))}
+                  {projectsLoading ? (
+                    // 載入中：只放一個佔位選項（value 對齊目前選取，避免網址預選被顯示成「不指定」）
+                    <option value={selectedProjectId}>載入專案中…</option>
+                  ) : (
+                    <>
+                      <option value="">不指定專案（不入庫）</option>
+                      {projects.map((p) => (
+                        <option key={p.id} value={p.id}>
+                          {p.name}
+                        </option>
+                      ))}
+                    </>
+                  )}
                 </select>
-                <ChevronDown className="absolute right-1.5 top-1/2 -translate-y-1/2 h-3 w-3 text-muted-foreground pointer-events-none" />
+                {projectsLoading ? (
+                  <InlineSpinner className="absolute right-1.5 top-1/2 -translate-y-1/2 text-muted-foreground pointer-events-none" iconClassName="h-3 w-3" />
+                ) : (
+                  <ChevronDown className="absolute right-1.5 top-1/2 -translate-y-1/2 h-3 w-3 text-muted-foreground pointer-events-none" />
+                )}
               </div>
               {selectedProjectId && (
                 <Badge variant="secondary" className="text-[10px]">
@@ -271,6 +409,24 @@ function OcrPageInner() {
           </div>
         </CardHeader>
         <CardContent className="space-y-4">
+          {/* 敏感資料遮罩 */}
+          <div className="rounded-md border bg-muted/30 px-3 py-2.5">
+            <label className="flex items-center gap-2 text-sm font-medium cursor-pointer w-fit">
+              <input
+                type="checkbox"
+                checked={maskEnabled}
+                onChange={(e) => toggleMask(e.target.checked)}
+                disabled={processing}
+                className="h-4 w-4 accent-primary cursor-pointer"
+              />
+              <ShieldCheck className={`h-4 w-4 ${maskEnabled ? "text-green-600" : "text-muted-foreground"}`} />
+              敏感資料掃描遮罩（送出前於本機遮蔽 IP、帳號、密碼等）
+            </label>
+            <p className="text-[11px] text-muted-foreground mt-1 pl-6 leading-relaxed">
+              遮罩在本機以規則處理，不經 AI；勾選時圖片改用本機 OCR，原圖不會送出。此功能非弱點掃描工具，用於避免弱掃報告、帳號清單等敏感內容外傳。
+            </p>
+          </div>
+
           <div
             className={`border-2 border-dashed rounded-lg p-10 text-center transition-colors ${
               dragging
@@ -374,23 +530,51 @@ function OcrPageInner() {
                     {item.status === "processing" && (
                       <Progress value={item.progress} className="mt-1.5 h-1" />
                     )}
-                    {item.status === "completed" && item.extractedChars != null && (
-                      <p className="text-[11px] text-muted-foreground mt-0.5">
-                        提取 {item.extractedChars.toLocaleString()} 字元 · {item.model}
+                    {/* 兩階段狀態 */}
+                    <div className="flex flex-wrap items-center gap-1.5 mt-1.5">
+                      <StepChip
+                        state={item.extractStep}
+                        label={`① ${(item.maskRequested ?? maskEnabled) ? "掃描遮罩" : "文字提取"}`}
+                      />
+                      <StepChip
+                        state={item.indexStep}
+                        label={
+                          item.indexStep === "skipped"
+                            ? `② 入庫：略過（${item.indexSkipReason ?? "未指定專案"}）`
+                            : "② 入庫"
+                        }
+                      />
+                    </div>
+
+                    {item.extractStep === "done" && (
+                      <p className="text-[11px] text-muted-foreground mt-1">
+                        {item.extractedChars != null && <>提取 {item.extractedChars.toLocaleString()} 字元</>}
+                        {item.method && <> · {item.method}</>}
+                        {item.maskRequested && (
+                          <span
+                            className={`ml-1 inline-flex items-center gap-0.5 ${
+                              (item.maskTotal ?? 0) > 0 ? "text-amber-600" : "text-green-600"
+                            }`}
+                          >
+                            · <ShieldCheck className="h-3 w-3" />
+                            {!item.masked && item.maskTotal == null
+                              ? "後端未回報遮罩結果"
+                              : formatMaskSummary(item.maskTotal, item.maskSummary)}
+                            {item.maskScope === "project" && "（已寫入專案對照表）"}
+                          </span>
+                        )}
                       </p>
                     )}
-                    {item.status === "error" && (
-                      <p className="text-[11px] text-red-500 mt-0.5">{item.error}</p>
+                    {item.extractError && (
+                      <p className="text-[11px] text-red-500 mt-0.5">階段①失敗：{item.extractError}</p>
                     )}
-                    {item.status === "queued" && (
-                      <p className="text-[11px] text-muted-foreground mt-0.5">
-                        等待處理 · {item.model}
-                      </p>
+                    {item.indexError && (
+                      <p className="text-[11px] text-red-500 mt-0.5">階段②失敗：{item.indexError}</p>
                     )}
                   </div>
 
                   <div className="flex items-center gap-1 shrink-0">
-                    {item.status === "completed" && item.extractedText && (
+                    {item.extractedText && (
                       <button
                         onClick={() => setPreviewItem(item)}
                         className="text-muted-foreground hover:text-foreground"
@@ -422,7 +606,9 @@ function OcrPageInner() {
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-6">
           <Card className="w-full max-w-2xl">
             <CardHeader className="flex-row items-center justify-between pb-3">
-              <CardTitle className="text-sm">{previewItem.filename} — 提取結果</CardTitle>
+              <CardTitle className="text-sm">
+                {previewItem.filename} — {previewItem.maskRequested ? "遮罩後文字" : "提取結果"}
+              </CardTitle>
               <button onClick={() => setPreviewItem(null)}>
                 <X className="h-4 w-4 text-muted-foreground hover:text-foreground" />
               </button>
@@ -435,6 +621,9 @@ function OcrPageInner() {
               </ScrollArea>
               <p className="text-[11px] text-muted-foreground mt-3">
                 共 {previewItem.extractedChars?.toLocaleString()} 字元
+                {previewItem.maskRequested && (
+                  <> · {formatMaskSummary(previewItem.maskTotal, previewItem.maskSummary)}</>
+                )}
               </p>
             </CardContent>
           </Card>

@@ -3,19 +3,19 @@
 export const runtime = 'edge'
 
 const BACKEND = process.env.BACKEND_URL ?? "http://localhost:8000"
-const isLocal = BACKEND.includes("localhost")
-
 export async function GET() {
   try {
-    const res = await fetch(`${BACKEND}/api/projects`)
-    if (!res.ok) throw new Error(await res.text())
+    const res = await fetch(`${BACKEND}/api/projects`, {
+      signal: AbortSignal.timeout(10_000),
+    })
+    if (!res.ok) throw new Error(`HTTP ${res.status}: ${await res.text()}`)
     return NextResponse.json(await res.json())
-  } catch {
-    if (isLocal) {
-      const { mockProjects, mockStats } = await import("@/lib/mock-data")
-      return NextResponse.json({ projects: mockProjects, stats: mockStats })
-    }
-    return NextResponse.json({ projects: [], stats: null })
+  } catch (err) {
+    const detail = err instanceof Error ? err.message : String(err)
+    return NextResponse.json(
+      { error: "後端連線失敗", detail, projects: [], stats: null },
+      { status: 503 }
+    )
   }
 }
 

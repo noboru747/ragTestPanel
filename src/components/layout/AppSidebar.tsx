@@ -12,6 +12,7 @@ import {
   MessageSquarePlus,
   ClipboardList,
   Settings,
+  ShieldCheck,
 } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { Badge } from "@/components/ui/badge"
@@ -25,6 +26,7 @@ const navItems = [
   { href: "/query", icon: MessageSquareText, label: "知識查詢" },
   { href: "/generate", icon: FileText, label: "生成文件" },
   { href: "/ocr", icon: Upload, label: "OCR 入庫" },
+  { href: "/mask-mappings", icon: ShieldCheck, label: "遮罩對照表" },
   { href: "/git", icon: GitBranch, label: "Git 整合" },
 ]
 

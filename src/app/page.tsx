@@ -33,6 +33,9 @@ import {
   Loader2,
   Trash2,
 } from "lucide-react"
+import { BackendErrorBanner } from "@/components/backend-error-banner"
+import { fetchJson } from "@/lib/backend-fetch"
+import { InlineSpinner } from "@/components/loading"
 
 type TemplateField = {
   key: string
@@ -228,7 +231,7 @@ function NewTemplateDialog({ onCreated }: { onCreated: () => void }) {
               取消
             </Button>
             <Button onClick={submit} disabled={loading}>
-              {loading ? "建立中..." : "建立模板"}
+              {loading ? <InlineSpinner label="建立中…" /> : "建立模板"}
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -289,27 +292,31 @@ function NewProjectDialog({ onCreated }: { onCreated: () => void }) {
       .replace(/-+/g, "-")
       .slice(0, 30) + "-" + Date.now().toString(36)
 
-    const res = await fetch("/api/projects", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        id,
-        name: form.name.trim(),
-        description: form.description.trim(),
-        git_url: gitStatus === "valid" ? form.gitUrl.trim() : null,
-        tags: form.tags.split(",").map((t) => t.trim()).filter(Boolean),
-        status: "active",
-      }),
-    })
-
-    setLoading(false)
-    if (res.ok) {
-      setOpen(false)
-      reset()
-      onCreated()
-    } else {
-      const d = await res.json()
-      setError(d.detail ?? d.error ?? "建立失敗")
+    try {
+      const res = await fetch("/api/projects", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          id,
+          name: form.name.trim(),
+          description: form.description.trim(),
+          git_url: gitStatus === "valid" ? form.gitUrl.trim() : null,
+          tags: form.tags.split(",").map((t) => t.trim()).filter(Boolean),
+          status: "active",
+        }),
+      })
+      if (res.ok) {
+        setOpen(false)
+        reset()
+        onCreated()
+      } else {
+        const d = await res.json().catch(() => ({}))
+        setError(d.detail ?? d.error ?? "建立失敗")
+      }
+    } catch {
+      setError("無法連線到後端服務")
+    } finally {
+      setLoading(false)
     }
   }
 
@@ -406,7 +413,7 @@ function NewProjectDialog({ onCreated }: { onCreated: () => void }) {
           {error && <p className="text-xs text-red-500">{error}</p>}
           <div className="flex gap-2 pt-1">
             <Button onClick={submit} disabled={loading || gitStatus === "checking"} className="flex-1">
-              {loading ? "建立中..." : "建立"}
+              {loading ? <InlineSpinner label="建立中…" /> : "建立"}
             </Button>
             <Button variant="outline" onClick={() => { setOpen(false); reset() }}>取消</Button>
           </div>
@@ -419,31 +426,44 @@ function NewProjectDialog({ onCreated }: { onCreated: () => void }) {
 export default function DashboardPage() {
   const [data, setData] = useState<{ projects: Project[]; stats: Stats } | null>(null)
   const [isRealData, setIsRealData] = useState(false)
+  const [dataError, setDataError] = useState<string | null>(null)
   const [templates, setTemplates] = useState<Template[] | null>(null)
 
-  const load = useCallback(() => {
+  const load = useCallback(async () => {
     setData(null)
-    fetch("/api/projects")
-      .then((r) => r.json())
-      .then((d) => {
-        setData(d)
-        // mock 資料固定值：totalProjects=4, projects.length=4
-        // 兩者皆符合才視為 mock，否則判斷為真實資料
-        const isMockData = d.stats?.totalProjects === 4 && d.projects?.length === 4
-        setIsRealData(!isMockData)
-      })
+    setDataError(null)
+    setIsRealData(false)
+    // API Route 已不再回傳 mock：後端失聯時回 503，這裡顯示錯誤而非假資料
+    const { data: d, error } = await fetchJson<{ projects: Project[]; stats: Stats }>("/api/projects")
+    if (error || !d) {
+      setDataError(error ?? "無法連線到後端服務")
+      return
+    }
+    setData(d)
+    setIsRealData(true)
   }, [])
 
-  const loadTemplates = useCallback(() => {
+  const [templatesError, setTemplatesError] = useState<string | null>(null)
+  const [deletingTemplateId, setDeletingTemplateId] = useState<string | null>(null)
+
+  const loadTemplates = useCallback(async () => {
     setTemplates(null)
-    fetch("/api/templates")
-      .then((r) => r.json())
-      .then((d) => setTemplates(d.templates ?? []))
-      .catch(() => setTemplates([]))
+    setTemplatesError(null)
+    const { data: d, error } = await fetchJson<{ templates?: Template[] }>("/api/templates")
+    if (error) setTemplatesError(error)
+    setTemplates(d?.templates ?? [])
   }, [])
 
   const deleteTemplate = async (id: string) => {
-    await fetch(`/api/templates/${id}`, { method: "DELETE" })
+    if (deletingTemplateId) return
+    setDeletingTemplateId(id)
+    try {
+      await fetch(`/api/templates/${id}`, { method: "DELETE" })
+    } catch {
+      /* 重新載入會反映實際狀態 */
+    } finally {
+      setDeletingTemplateId(null)
+    }
     loadTemplates()
   }
 
@@ -471,6 +491,8 @@ export default function DashboardPage() {
         <NewProjectDialog onCreated={load} />
       </div>
 
+      <BackendErrorBanner message={dataError} onRetry={load} />
+
       {/* 統計卡片 */}
       <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
         {[
@@ -488,6 +510,8 @@ export default function DashboardPage() {
                 <p className="text-xs text-muted-foreground">{label}</p>
                 {value != null ? (
                   <p className="text-2xl font-bold">{value}</p>
+                ) : dataError ? (
+                  <p className="text-2xl font-bold text-muted-foreground">—</p>
                 ) : (
                   <Skeleton className="h-8 w-12 mt-1" />
                 )}
@@ -526,7 +550,15 @@ export default function DashboardPage() {
           </Link>
         </div>
 
-        {!data ? (
+        {dataError ? (
+          <Card>
+            <CardContent className="p-10 flex flex-col items-center gap-3 text-center">
+              <FolderOpen className="h-10 w-10 text-muted-foreground" />
+              <p className="font-medium text-sm">無法載入專案列表</p>
+              <p className="text-xs text-muted-foreground">請確認後端服務是否正常運行</p>
+            </CardContent>
+          </Card>
+        ) : !data ? (
           <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
             {[1, 2, 3, 4].map((i) => (
               <Card key={i}>
@@ -612,6 +644,7 @@ export default function DashboardPage() {
           <h2 className="font-semibold">文件模板管理</h2>
           <NewTemplateDialog onCreated={loadTemplates} />
         </div>
+        <BackendErrorBanner message={templatesError} onRetry={loadTemplates} className="mb-3" />
 
         {!templates ? (
           <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
@@ -624,7 +657,7 @@ export default function DashboardPage() {
               </Card>
             ))}
           </div>
-        ) : templates.length === 0 ? (
+        ) : templates.length === 0 && templatesError ? null : templates.length === 0 ? (
           <Card>
             <CardContent className="p-10 flex flex-col items-center gap-3 text-center">
               <FileText className="h-10 w-10 text-muted-foreground" />
@@ -645,9 +678,15 @@ export default function DashboardPage() {
                           e.preventDefault()
                           deleteTemplate(tmpl.id)
                         }}
-                        className="text-muted-foreground hover:text-destructive shrink-0 transition-colors"
+                        disabled={deletingTemplateId !== null}
+                        aria-label="刪除模板"
+                        className="text-muted-foreground hover:text-destructive shrink-0 transition-colors disabled:opacity-60"
                       >
-                        <Trash2 className="h-4 w-4" />
+                        {deletingTemplateId === tmpl.id ? (
+                          <Loader2 className="h-4 w-4 animate-spin" />
+                        ) : (
+                          <Trash2 className="h-4 w-4" />
+                        )}
                       </button>
                     </div>
                     <div className="flex items-center gap-3 text-xs text-muted-foreground">
