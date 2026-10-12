@@ -1,13 +1,97 @@
+import json
 import httpx
 from typing import AsyncGenerator
 from config import settings
+
+
+class LLMProviderError(RuntimeError):
+    """OpenAI 相容 API 回傳錯誤時拋出，訊息內含 HTTP status 與 response body。"""
+
+
+def _use_openai() -> bool:
+    return (settings.llm_provider or "").strip().lower() == "openai"
 
 
 class OllamaService:
     def __init__(self):
         self.base_url = settings.ollama_base_url
 
+    # ── OpenAI 相容（ModaOne ModelSpace 等）──────────────────────────────
+    def _openai_url(self) -> str:
+        base = (settings.openai_base_url or "").rstrip("/")
+        if not base:
+            raise LLMProviderError("LLM_PROVIDER=openai 但未設定 OPENAI_BASE_URL")
+        if not settings.openai_model:
+            raise LLMProviderError("LLM_PROVIDER=openai 但未設定 OPENAI_MODEL")
+        return f"{base}/chat/completions"
+
+    def _openai_headers(self) -> dict:
+        headers = {"Content-Type": "application/json"}
+        if settings.openai_api_key:
+            headers["Authorization"] = f"Bearer {settings.openai_api_key}"
+        return headers
+
+    @staticmethod
+    def _openai_error(res: httpx.Response, body: str) -> LLMProviderError:
+        return LLMProviderError(
+            f"OpenAI-compatible API error: HTTP {res.status_code} {res.request.url} — {body[:2000]}"
+        )
+
+    async def _openai_chat(self, prompt: str, timeout: int) -> str:
+        url = self._openai_url()
+        payload = {
+            "model": settings.openai_model,
+            "messages": [{"role": "user", "content": prompt}],
+            "stream": False,
+            # 注意：非串流不可帶 stream_options（ModaOne 會報錯）
+        }
+        async with httpx.AsyncClient(timeout=max(timeout, settings.openai_timeout)) as client:
+            res = await client.post(url, json=payload, headers=self._openai_headers())
+            if res.status_code >= 400:
+                raise self._openai_error(res, res.text)
+            try:
+                data = res.json()
+                return data["choices"][0]["message"]["content"] or ""
+            except (ValueError, KeyError, IndexError, TypeError) as e:
+                raise LLMProviderError(f"OpenAI-compatible API 回應格式無法解析（{e}）：{res.text[:2000]}")
+
+    async def _openai_chat_stream(self, prompt: str) -> AsyncGenerator[str, None]:
+        url = self._openai_url()
+        payload = {
+            "model": settings.openai_model,
+            "messages": [{"role": "user", "content": prompt}],
+            "stream": True,
+        }
+        async with httpx.AsyncClient(timeout=settings.openai_timeout) as client:
+            async with client.stream("POST", url, json=payload, headers=self._openai_headers()) as res:
+                if res.status_code >= 400:
+                    body = (await res.aread()).decode("utf-8", errors="replace")
+                    raise self._openai_error(res, body)
+                async for line in res.aiter_lines():
+                    line = line.strip()
+                    if not line or not line.startswith("data:"):
+                        continue
+                    data_str = line[5:].strip()
+                    if data_str == "[DONE]":
+                        break
+                    try:
+                        data = json.loads(data_str)
+                    except ValueError:
+                        continue
+                    if "error" in data:
+                        raise LLMProviderError(f"OpenAI-compatible stream error: {data_str[:2000]}")
+                    choices = data.get("choices") or []
+                    if not choices:
+                        continue
+                    token = (choices[0].get("delta") or {}).get("content")
+                    if token:
+                        yield token
+
+    # ── 公開介面（routers 使用）────────────────────────────────────────
     async def chat(self, prompt: str, model: str | None = None, timeout: int = 120) -> str:
+        if _use_openai():
+            # openai 模式忽略呼叫方傳入的 Ollama model 名稱，一律用 settings.openai_model
+            return await self._openai_chat(prompt, timeout)
         model = model or settings.chat_model
         async with httpx.AsyncClient(timeout=timeout) as client:
             res = await client.post(
@@ -18,6 +102,10 @@ class OllamaService:
             return res.json()["response"]
 
     async def chat_stream(self, prompt: str, model: str | None = None) -> AsyncGenerator[str, None]:
+        if _use_openai():
+            async for token in self._openai_chat_stream(prompt):
+                yield token
+            return
         model = model or settings.chat_model
         async with httpx.AsyncClient(timeout=120) as client:
             async with client.stream(
@@ -27,7 +115,6 @@ class OllamaService:
             ) as res:
                 async for line in res.aiter_lines():
                     if line:
-                        import json
                         data = json.loads(line)
                         if token := data.get("response"):
                             yield token
@@ -35,7 +122,8 @@ class OllamaService:
                             break
 
     async def embed(self, text: str) -> list[float]:
-        async with httpx.AsyncClient(timeout=60) as client:
+        # ModaOne 無 embedding 端點，維持 Ollama
+        async with httpx.AsyncClient(timeout=120) as client:
             res = await client.post(
                 f"{self.base_url}/api/embeddings",
                 json={"model": settings.embed_model, "prompt": text},
@@ -62,6 +150,8 @@ class OllamaService:
             return res.json()["response"]
 
     async def list_models(self) -> list[str]:
+        if _use_openai():
+            return [settings.openai_model] if settings.openai_model else []
         async with httpx.AsyncClient(timeout=30) as client:
             res = await client.get(f"{self.base_url}/api/tags")
             res.raise_for_status()
