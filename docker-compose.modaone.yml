@@ -1,11 +1,20 @@
-# ModaOne ModelSpace override：讓 backend 的文字生成改走 OpenAI 相容 API
-# 用法：
-#   cp .env.modaone.example .env.modaone   # 填入 OPENAI_BASE_URL / OPENAI_API_KEY / OPENAI_MODEL
+# ModaOne override：文字生成 + embedding + 圖片 OCR 全部改走 ModaOne（OpenAI 相容 API），
+# 並使用獨立的空資料庫 rga_km_modaone（vector(1024)，HNSW 索引）。
+#
+# 首次使用：
+#   cp .env.modaone.example .env.modaone            # 填入 OPENAI_API_KEY
+#   bash backend/scripts/create_modaone_db.sh       # 建立 rga_km_modaone（不影響 rga_km）
 #   docker compose -f docker-compose.yml -f docker-compose.modaone.yml up -d backend
-# 注意：embed / vision OCR 仍走 Ollama（ModaOne 無 embedding 端點）
+# 切回 Ollama + rga_km：
+#   docker compose up -d backend
+#
+# 連外：backend 在預設 bridge network，Docker NAT 可直接連 HTTPS；httpx 使用 certifi CA，無需額外設定。
 services:
   backend:
     env_file:
-      - .env.modaone
+      - .env.modaone          # OPENAI_BASE_URL / OPENAI_API_KEY / OPENAI_*_MODEL / EMBED_MAX_CHARS
     environment:
+      DATABASE_URL: postgresql://${POSTGRES_USER:-rga_user}:${POSTGRES_PASSWORD:-rga_pass}@postgres:5432/rga_km_modaone
       LLM_PROVIDER: openai
+      EMBED_PROVIDER: openai
+      VISION_PROVIDER: openai

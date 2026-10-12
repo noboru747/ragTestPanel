@@ -2,6 +2,7 @@ from fastapi import APIRouter, Depends, Query
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import text
 
+from config import settings
 from services.db_service import get_db
 from services.ollama_service import ollama
 
@@ -19,14 +20,20 @@ async def index_document(payload: dict, db: AsyncSession = Depends(get_db)):
     project_id = payload.get("project_id", "default")
     filename = payload.get("filename", "")
 
-    embedding = await ollama.embed(doc_text[:4000])
+    # nomic-embed-text 這個 ollama 容器目前實際能吃的 physical batch size 是 2048
+    # tokens（送 options.num_ctx/num_batch 覆寫沒有用，模型已常駐載入、per-request
+    # 覆寫不會生效），中文文字常常 1 字吃超過 1 個 token，4000 字很容易超過 2048
+    # tokens 而讓 ollama /api/embeddings 回 500。1500 字留了足夠安全邊際。
+    # 截斷長度改由 settings.embed_max_chars 控制（Ollama 預設 1500；ModaOne bge-m3 設 6000）。
+    embedding = await ollama.embed(doc_text[: settings.embed_max_chars])
 
     await db.execute(
         text("""
             INSERT INTO documents (project_id, filename, content, embedding)
             VALUES (:project_id, :filename, :content, CAST(:embedding AS vector))
             ON CONFLICT (project_id, filename)
-            DO UPDATE SET content = EXCLUDED.content, embedding = EXCLUDED.embedding
+            DO UPDATE SET content = EXCLUDED.content, embedding = EXCLUDED.embedding,
+                          embedding_stale = FALSE
         """),
         {
             "project_id": project_id,
@@ -89,7 +96,7 @@ async def list_documents(
     rows = await db.execute(
         text(f"""
             SELECT id, project_id, filename, length(content) AS char_count,
-                   file_type, tags, created_at
+                   file_type, tags, created_at, embedding_stale
             FROM documents
             {where}
             ORDER BY created_at DESC
@@ -110,6 +117,7 @@ async def list_documents(
                 "status": "indexed",
                 "tags": d.tags or [],
                 "summary": "",
+                "embeddingStale": bool(d.embedding_stale),
             }
             for d in docs
         ]

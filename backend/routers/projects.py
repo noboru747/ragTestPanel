@@ -121,8 +121,13 @@ async def update_project(
 
 @router.delete("/{project_id}")
 async def delete_project(project_id: str, db: AsyncSession = Depends(get_db)):
-    await db.execute(
-        text("DELETE FROM projects WHERE id = :id"), {"id": project_id}
-    )
-    await db.commit()
-    return {"status": "deleted"}
+    # 同一交易內一併刪除該專案的文件與遮罩對照表
+    try:
+        docs = await db.execute(text("DELETE FROM documents WHERE project_id = :id"), {"id": project_id})
+        maps = await db.execute(text("DELETE FROM mask_mappings WHERE project_id = :id"), {"id": project_id})
+        await db.execute(text("DELETE FROM projects WHERE id = :id"), {"id": project_id})
+        await db.commit()
+    except Exception:
+        await db.rollback()
+        raise
+    return {"status": "deleted", "deleted_documents": docs.rowcount, "deleted_mappings": maps.rowcount}
