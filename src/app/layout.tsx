@@ -2,6 +2,8 @@ import type { Metadata } from "next"
 import "./globals.css"
 import { AppSidebar } from "@/components/layout/AppSidebar"
 import { TooltipProvider } from "@/components/ui/tooltip"
+import { Suspense } from "react"
+import { TopProgressBar } from "@/components/loading/top-progress-bar"
 
 export const runtime = 'edge'
 
@@ -14,6 +16,9 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
   return (
     <html lang="zh-TW">
       <body>
+        <Suspense fallback={null}>
+          <TopProgressBar />
+        </Suspense>
         <TooltipProvider>
           <div className="flex h-screen overflow-hidden bg-background">
             <AppSidebar />

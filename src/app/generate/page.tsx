@@ -2,6 +2,7 @@
 
 export const runtime = 'edge'
 
+import { ListSkeleton } from "@/components/loading"
 import { useEffect, useState } from "react"
 import { useRouter } from "next/navigation"
 import { Card, CardContent } from "@/components/ui/card"
@@ -41,11 +42,7 @@ export default function GeneratePage() {
       </div>
 
       {loading ? (
-        <Card>
-          <CardContent className="p-10 flex flex-col items-center gap-3 text-center">
-            <p className="font-medium text-sm text-muted-foreground">載入模板中...</p>
-          </CardContent>
-        </Card>
+        <ListSkeleton rows={3} variant="grid2" label="模板載入中…" />
       ) : templates.length === 0 ? (
         <Card>
           <CardContent className="p-10 flex flex-col items-center gap-3 text-center">

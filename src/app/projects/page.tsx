@@ -2,7 +2,7 @@
 
 export const runtime = 'edge'
 
-import { useEffect, useState } from "react"
+import { useEffect, useState, useCallback } from "react"
 import Link from "next/link"
 import { Card, CardContent } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
@@ -10,6 +10,10 @@ import { Input } from "@/components/ui/input"
 import { Skeleton } from "@/components/ui/skeleton"
 import { FileText, GitBranch, Clock, Search, TrendingUp, AlertCircle, Circle } from "lucide-react"
 import type { MockProject } from "@/lib/mock-data"
+import { BackendErrorBanner } from "@/components/backend-error-banner"
+import { fetchJson } from "@/lib/backend-fetch"
+import { takeFlashMessage } from "@/lib/flash"
+import { CheckCircle2 } from "lucide-react"
 
 const statusConfig = {
   active: { label: "進行中", color: "default", icon: TrendingUp },
@@ -21,12 +25,33 @@ export default function ProjectsPage() {
   const [projects, setProjects] = useState<MockProject[]>([])
   const [loading, setLoading] = useState(true)
   const [search, setSearch] = useState("")
+  const [loadError, setLoadError] = useState<string | null>(null)
+  const [flash, setFlash] = useState<string | null>(null)
+
+  // 顯示從其他頁帶過來的一次性訊息（例如刪除專案結果），數秒後自動消失
+  useEffect(() => {
+    const msg = takeFlashMessage()
+    if (msg) setFlash(msg)
+  }, [])
 
   useEffect(() => {
-    fetch("/api/projects")
-      .then((r) => r.json())
-      .then((d) => { setProjects(d.projects); setLoading(false) })
+    if (!flash) return
+    const t = setTimeout(() => setFlash(null), 6000)
+    return () => clearTimeout(t)
+  }, [flash])
+
+  const load = useCallback(async () => {
+    setLoading(true)
+    setLoadError(null)
+    const { data, error } = await fetchJson<{ projects?: MockProject[] }>("/api/projects")
+    setProjects(data?.projects ?? [])
+    setLoadError(error)
+    setLoading(false)
   }, [])
+
+  useEffect(() => {
+    load()
+  }, [load])
 
   const filtered = projects.filter(
     (p) =>
@@ -37,6 +62,19 @@ export default function ProjectsPage() {
 
   return (
     <div className="p-6 space-y-5">
+      {flash && (
+        <div
+          role="status"
+          className="flex items-center gap-2 rounded-md border border-green-300 bg-green-50 px-3 py-2 text-sm text-green-800 dark:border-green-500/30 dark:bg-green-500/10 dark:text-green-200"
+        >
+          <CheckCircle2 className="h-4 w-4 shrink-0" />
+          <span className="flex-1">{flash}</span>
+          <button onClick={() => setFlash(null)} className="text-xs opacity-70 hover:opacity-100">
+            關閉
+          </button>
+        </div>
+      )}
+      <BackendErrorBanner message={loadError} onRetry={load} />
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold">專案文件</h1>
@@ -121,9 +159,9 @@ export default function ProjectsPage() {
               </Link>
             )
           })}
-          {filtered.length === 0 && (
+          {filtered.length === 0 && !loadError && (
             <p className="text-sm text-muted-foreground col-span-2 py-8 text-center">
-              找不到符合的專案
+              {projects.length === 0 ? "尚無專案" : "找不到符合的專案"}
             </p>
           )}
         </div>

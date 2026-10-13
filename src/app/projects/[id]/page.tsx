@@ -2,8 +2,8 @@
 
 export const runtime = 'edge'
 
-import { useEffect, useState } from "react"
-import { useParams } from "next/navigation"
+import { useEffect, useState, useCallback } from "react"
+import { useParams, useRouter } from "next/navigation"
 import Link from "next/link"
 import { Card, CardContent } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
@@ -23,8 +23,14 @@ import {
   Upload,
   MessageSquareText,
   FolderOpen,
+  Trash2,
 } from "lucide-react"
 import { Input } from "@/components/ui/input"
+import { BackendErrorBanner } from "@/components/backend-error-banner"
+import { fetchJson } from "@/lib/backend-fetch"
+import { ListSkeleton } from "@/components/loading"
+import { DeleteProjectDialog, type DeleteProjectResult } from "@/components/delete-project-dialog"
+import { setFlashMessage } from "@/lib/flash"
 
 type Project = {
   id: string
@@ -69,12 +75,34 @@ export default function ProjectDetailPage() {
   const { id } = useParams<{ id: string }>()
   const [data, setData] = useState<{ project: Project; documents: Document[] } | null>(null)
   const [search, setSearch] = useState("")
+  const [loadError, setLoadError] = useState<string | null>(null)
+  const [deleteOpen, setDeleteOpen] = useState(false)
+  const router = useRouter()
+
+  const handleDeleted = (r: DeleteProjectResult) => {
+    setDeleteOpen(false)
+    setFlashMessage(
+      `已刪除專案「${data?.project.name ?? id}」，含 ${r.deleted_documents ?? 0} 份文件、${r.deleted_mappings ?? 0} 筆對照`
+    )
+    router.push("/projects")
+  }
+
+  const load = useCallback(async () => {
+    setLoadError(null)
+    const { data: d, error } = await fetchJson<{ project: Project; documents: Document[] }>(
+      `/api/projects/${id}`
+    )
+    if (error || !d?.project) {
+      setData(null)
+      setLoadError(error ?? "找不到此專案")
+      return
+    }
+    setData({ project: d.project, documents: d.documents ?? [] })
+  }, [id])
 
   useEffect(() => {
-    fetch(`/api/projects/${id}`)
-      .then((r) => r.json())
-      .then(setData)
-  }, [id])
+    load()
+  }, [load])
 
   const filtered = (data?.documents ?? []).filter(
     (d) =>
@@ -92,10 +120,20 @@ export default function ProjectDetailPage() {
         返回儀表板
       </Link>
 
-      {!data ? (
-        <div className="space-y-4">
-          <Skeleton className="h-8 w-64" />
-          <Skeleton className="h-4 w-96" />
+      {loadError ? (
+        <BackendErrorBanner message={loadError} onRetry={load} />
+      ) : !data ? (
+        <div className="space-y-5">
+          <div className="space-y-2">
+            <Skeleton className="h-8 w-64" />
+            <Skeleton className="h-4 w-96 max-w-full" />
+          </div>
+          <div className="grid grid-cols-3 gap-3">
+            {[1, 2, 3].map((i) => (
+              <Skeleton key={i} className="h-16" />
+            ))}
+          </div>
+          <ListSkeleton rows={4} label="文件清單載入中…" />
         </div>
       ) : (
         <>
@@ -244,6 +282,31 @@ export default function ProjectDetailPage() {
               })
             )}
           </div>
+
+          {/* 危險區域 */}
+          <Card className="border-destructive/40">
+            <CardContent className="p-4 flex flex-wrap items-center justify-between gap-3">
+              <div>
+                <p className="text-sm font-semibold text-destructive">危險區域</p>
+                <p className="text-xs text-muted-foreground mt-0.5">
+                  刪除專案會一併刪除其所有文件、向量與遮罩對照表，且無法復原。
+                </p>
+              </div>
+              <Button variant="destructive" size="sm" className="gap-1.5" onClick={() => setDeleteOpen(true)}>
+                <Trash2 className="h-4 w-4" />
+                刪除專案
+              </Button>
+            </CardContent>
+          </Card>
+
+          <DeleteProjectDialog
+            open={deleteOpen}
+            onOpenChange={setDeleteOpen}
+            projectId={id}
+            projectName={data.project.name}
+            documentCount={data.documents.length}
+            onDeleted={handleDeleted}
+          />
         </>
       )}
     </div>

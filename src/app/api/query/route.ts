@@ -22,16 +22,19 @@ export async function POST(req: NextRequest) {
     if (!res.ok) {
       const err = await res.text()
       return NextResponse.json(
-        { answer: `後端錯誤：${err}`, sources: [] },
+        { error: "後端回應錯誤", detail: err, answer: `後端錯誤：${err}`, sources: [] },
         { status: 502 }
       )
     }
 
     const data = await res.json()
     return NextResponse.json(data)
-  } catch {
+  } catch (err) {
+    const detail = err instanceof Error ? err.message : String(err)
     return NextResponse.json(
       {
+        error: "後端連線失敗",
+        detail,
         answer: "無法連線至後端服務。請確認 Docker 服務正在運行（`docker compose up -d`）。",
         sources: [],
       },

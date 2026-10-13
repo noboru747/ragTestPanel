@@ -128,3 +128,18 @@
     @apply font-sans;
   }
 }
+/* 載入動畫：尊重使用者「減少動態效果」設定 */
+@media (prefers-reduced-motion: reduce) {
+  .animate-pulse {
+    animation: none !important;
+  }
+  .animate-spin {
+    animation-duration: 2.5s !important;
+  }
+  .animate-bounce {
+    animation: none !important;
+  }
+  .top-progress-bar {
+    transition: none !important;
+  }
+}

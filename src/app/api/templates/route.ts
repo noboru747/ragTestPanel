@@ -7,10 +7,11 @@ const BACKEND = process.env.BACKEND_URL ?? "http://localhost:8000"
 export async function GET() {
   try {
     const res = await fetch(`${BACKEND}/api/templates`)
-    if (!res.ok) throw new Error(await res.text())
+    if (!res.ok) throw new Error(`HTTP ${res.status}: ${await res.text()}`)
     return NextResponse.json(await res.json())
-  } catch {
-    return NextResponse.json({ templates: [] })
+  } catch (err) {
+    const detail = err instanceof Error ? err.message : String(err)
+    return NextResponse.json({ error: "後端連線失敗", detail, templates: [] }, { status: 503 })
   }
 }
 

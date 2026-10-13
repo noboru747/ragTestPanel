@@ -80,3 +80,28 @@ CREATE INDEX IF NOT EXISTS idx_documents_tsv ON documents USING gin(content_tsv)
 ALTER TABLE documents ADD COLUMN IF NOT EXISTS doc_version     TEXT;
 ALTER TABLE documents ADD COLUMN IF NOT EXISTS effective_date  DATE;
 ALTER TABLE documents ADD COLUMN IF NOT EXISTS superseded_by   INT REFERENCES documents(id);
+
+-- ============================================================
+-- Migration P4: 敏感資料遮罩對照表（專案範圍、僅存本機）
+-- 代號 ↔ 原值；original_value 為明文敏感資料，切勿外送
+-- ============================================================
+CREATE TABLE IF NOT EXISTS mask_mappings (
+    id              SERIAL PRIMARY KEY,
+    project_id      TEXT NOT NULL,
+    placeholder     TEXT NOT NULL,          -- 例：【IP_1】
+    category        TEXT NOT NULL,          -- ip / account / credential ...
+    original_value  TEXT NOT NULL,
+    filenames       TEXT[] NOT NULL DEFAULT '{}',
+    created_at      TIMESTAMPTZ DEFAULT NOW(),
+    updated_at      TIMESTAMPTZ DEFAULT NOW(),
+    UNIQUE (project_id, placeholder),
+    UNIQUE (project_id, category, original_value)
+);
+CREATE INDEX IF NOT EXISTS idx_mask_mappings_project ON mask_mappings(project_id);
+
+-- ============================================================
+-- Migration P5: documents.embedding_stale
+-- 內容被本機補遮（/api/mask/rescan）改寫後，向量仍是舊內容算的 → 標記待重算
+-- /api/documents/index 重新入庫時會清回 false
+-- ============================================================
+ALTER TABLE documents ADD COLUMN IF NOT EXISTS embedding_stale BOOLEAN NOT NULL DEFAULT FALSE;

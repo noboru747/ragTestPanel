@@ -6,8 +6,28 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import text
 
 from services.db_service import get_db
+from services.mask_store import load_mappings
+from services.masking import extract_mappings, mask_question
 from services.ollama_service import ollama
 from routers.documents import _vec
+
+MASK_PROMPT_NOTE = "文件中形如【類別_N】（例如【IP_1】、【帳號_2】）的文字為敏感資料遮罩代號，回答時請原樣保留代號，不要猜測、還原或改寫其內容。"
+
+
+def build_rag_prompt(context_text: str, question: str) -> str:
+    return f"""你是一個專業的專案管理助手，根據以下知識庫文件來回答 PM 的問題。
+請使用繁體中文回答，答案要具體且有條理。若文件中沒有足夠資訊，請如實說明。
+{MASK_PROMPT_NOTE}
+
+## 知識庫文件內容
+
+{context_text}
+
+## PM 的問題
+
+{question}
+
+請根據上述文件內容回答："""
 
 router = APIRouter()
 
@@ -19,10 +39,14 @@ async def rag_query(payload: dict, db: AsyncSession = Depends(get_db)):
     top_k = int(payload.get("top_k", 5))
 
     if not question:
-        return {"answer": "請輸入問題。", "sources": []}
+        return {"answer": "請輸入問題。", "sources": [], "question_masked": 0, "mappings": []}
 
     if not project_id:
         raise HTTPException(status_code=422, detail="project_id is required")
+
+    # 0. 以專案遮罩對照表把問題中的敏感原值換成代號（之後 embedding / LLM 只用遮罩後問題）
+    mappings = await load_mappings(db, project_id)
+    question, question_masked = mask_question(question, mappings)
 
     # 1. 將問題向量化
     q_embedding = await ollama.embed(question)
@@ -57,6 +81,8 @@ async def rag_query(payload: dict, db: AsyncSession = Depends(get_db)):
         return {
             "answer": "目前知識庫中沒有相關文件。請先透過 OCR 入庫頁面上傳並建立文件索引，再進行查詢。",
             "sources": [],
+            "question_masked": question_masked,
+            "mappings": [],
         }
 
     # 4. 組建 RAG prompt
@@ -66,30 +92,22 @@ async def rag_query(payload: dict, db: AsyncSession = Depends(get_db)):
         context_parts.append(f"【文件：{r.filename}】\n{snippet}")
     context_text = "\n\n---\n\n".join(context_parts)
 
-    prompt = f"""你是一個專業的專案管理助手，根據以下知識庫文件來回答 PM 的問題。
-請使用繁體中文回答，答案要具體且有條理。若文件中沒有足夠資訊，請如實說明。
-
-## 知識庫文件內容
-
-{context_text}
-
-## PM 的問題
-
-{question}
-
-請根據上述文件內容回答："""
+    prompt = build_rag_prompt(context_text, question)
 
     answer = await ollama.chat(prompt)
 
+    sources = [r for r in results if float(r.relevance) > 0.3]
+    snippets = [r.content[:1500] for r in sources]
     return {
         "answer": answer,
+        "question_masked": question_masked,
+        "mappings": extract_mappings([answer, *snippets], mappings),
         "sources": [
             {
                 "docId": r.filename,
                 "docName": r.filename,
                 "relevance": round(float(r.relevance), 4),
             }
-            for r in results
-            if float(r.relevance) > 0.3
+            for r in sources
         ],
     }

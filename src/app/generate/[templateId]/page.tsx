@@ -2,6 +2,7 @@
 
 export const runtime = 'edge'
 
+import { InlineSpinner } from "@/components/loading"
 import { useEffect, useRef, useState } from "react"
 import { useRouter } from "next/navigation"
 import ProposalDocument, {
@@ -451,7 +452,7 @@ export default function GenerateFromTemplatePage({
               <div className="space-y-1.5">
                 <label className="text-sm font-medium">選擇專案</label>
                 {projects.length === 0 ? (
-                  <p className="text-xs text-muted-foreground">（載入專案清單中...）</p>
+                  <InlineSpinner label="載入專案中…" className="text-xs text-muted-foreground" iconClassName="h-3.5 w-3.5" />
                 ) : (
                   <select
                     value={projectId}

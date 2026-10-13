@@ -9,13 +9,39 @@ import { Button } from "@/components/ui/button"
 import { Textarea } from "@/components/ui/textarea"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { Separator } from "@/components/ui/separator"
-import { MessageSquareText, Send, FileText, Loader2, Sparkles, ChevronDown } from "lucide-react"
+import { MessageSquareText, Send, FileText, Sparkles, ChevronDown, ShieldCheck, Eye, EyeOff } from "lucide-react"
+import { BackendErrorBanner } from "@/components/backend-error-banner"
+import { MaskedText } from "@/components/masked-answer"
+import { fetchJson } from "@/lib/backend-fetch"
+import { InlineSpinner } from "@/components/loading"
+import { WaitingBubble } from "@/components/loading/waiting-bubble"
+import { countRestored, splitMaskedText, type MaskMapping } from "@/lib/mask"
 
 type Message = {
   id: string
   role: "user" | "assistant"
   content: string
   sources?: { docId: string; docName: string; relevance: number }[]
+  /** 送出當下的查詢範圍（避免切換專案後舊訊息的 badge 跟著變） */
+  projectId?: string
+  projectName?: string
+  /** 後端回傳的遮罩對照（answer 中的代號 → 原值） */
+  mappings?: MaskMapping[]
+  /** 問題中送出前被遮罩的項數 */
+  questionMasked?: number
+  /** 錯誤回應（以錯誤樣式顯示） */
+  isError?: boolean
+}
+
+function parseMappings(raw: unknown): MaskMapping[] {
+  if (!Array.isArray(raw)) return []
+  return raw.filter(
+    (m): m is MaskMapping =>
+      !!m &&
+      typeof m === "object" &&
+      typeof (m as MaskMapping).placeholder === "string" &&
+      typeof (m as MaskMapping).original === "string"
+  )
 }
 
 type Project = { id: string; name: string }
@@ -72,20 +98,18 @@ export default function QueryPage() {
   const [loading, setLoading] = useState(false)
   const [projectId, setProjectId] = useState<string>("")
   const [projects, setProjects] = useState<Project[]>([])
+  const [projectsError, setProjectsError] = useState<string | null>(null)
+  const [projectsLoading, setProjectsLoading] = useState(true)
   const [suggestions, setSuggestions] = useState<string[]>(FALLBACK_SUGGESTIONS)
+  /** 每則回答「顯示代號」的切換（預設顯示原值） */
+  const [showCodes, setShowCodes] = useState<Record<string, boolean>>({})
   const bottomRef = useRef<HTMLDivElement>(null)
+  const projectIdRef = useRef(projectId)
+  projectIdRef.current = projectId
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" })
   }, [messages])
-
-  // 載入專案清單
-  useEffect(() => {
-    fetch("/api/projects")
-      .then((r) => r.json())
-      .then((d) => setProjects(d.projects ?? d ?? []))
-      .catch(() => {})
-  }, [])
 
   // 選了專案後，取前 30 份文件動態產生建議問題
   const refreshSuggestions = useCallback(async (pid: string) => {
@@ -103,10 +127,42 @@ export default function QueryPage() {
     }
   }, [])
 
-  const handleProjectChange = (pid: string) => {
-    setProjectId(pid)
-    refreshSuggestions(pid)
-  }
+  const handleProjectChange = useCallback(
+    (pid: string) => {
+      setProjectId(pid)
+      refreshSuggestions(pid)
+    },
+    [refreshSuggestions]
+  )
+
+  // 載入專案清單；網址帶 ?projectId= 時優先選它，否則只有 1 個專案時自動選取
+  const loadProjects = useCallback(async () => {
+    setProjectsError(null)
+    setProjectsLoading(true)
+    const { data, error } = await fetchJson<{ projects?: Project[] }>("/api/projects")
+    setProjectsLoading(false)
+    if (error) {
+      setProjects([])
+      setProjectsError(error)
+      return
+    }
+    const list = data?.projects ?? []
+    setProjects(list)
+
+    const urlPid = new URLSearchParams(window.location.search).get("projectId")
+    if (projectIdRef.current) return // 已有選取，不覆蓋
+    const pick =
+      urlPid && list.some((p) => p.id === urlPid)
+        ? urlPid
+        : list.length === 1
+          ? list[0].id
+          : ""
+    if (pick) handleProjectChange(pick)
+  }, [handleProjectChange])
+
+  useEffect(() => {
+    loadProjects()
+  }, [loadProjects])
 
   const send = async (text?: string) => {
     const question = text ?? input.trim()
@@ -114,7 +170,15 @@ export default function QueryPage() {
     if (!projectId) return
 
     setInput("")
-    const userMsg: Message = { id: Date.now().toString(), role: "user", content: question }
+    const askedProjectId = projectId
+    const askedProjectName = projects.find((p) => p.id === projectId)?.name
+    const userMsg: Message = {
+      id: Date.now().toString(),
+      role: "user",
+      content: question,
+      projectId: askedProjectId,
+      projectName: askedProjectName,
+    }
     setMessages((prev) => [...prev, userMsg])
     setLoading(true)
 
@@ -131,8 +195,13 @@ export default function QueryPage() {
         {
           id: (Date.now() + 1).toString(),
           role: "assistant",
-          content: data.answer,
+          content: data.answer ?? data.error ?? "（無回應內容）",
+          isError: !res.ok,
           sources: data.sources,
+          projectId: askedProjectId,
+          projectName: askedProjectName,
+          mappings: parseMappings(data.mappings),
+          questionMasked: typeof data.question_masked === "number" ? data.question_masked : 0,
         },
       ])
     } catch {
@@ -142,6 +211,9 @@ export default function QueryPage() {
           id: (Date.now() + 1).toString(),
           role: "assistant",
           content: "連線失敗，請確認後端服務正在運行。",
+          isError: true,
+          projectId: askedProjectId,
+          projectName: askedProjectName,
         },
       ])
     } finally {
@@ -158,7 +230,7 @@ export default function QueryPage() {
         <div>
           <h1 className="text-2xl font-bold">知識查詢</h1>
           <p className="text-muted-foreground text-sm mt-1">
-            用自然語言查詢所有專案文件內容，由本地 Ollama 透過 RAG 生成答案
+            用自然語言查詢專案文件內容，透過 RAG 生成答案並標示來源
           </p>
         </div>
 
@@ -169,19 +241,33 @@ export default function QueryPage() {
             <select
               value={projectId}
               onChange={(e) => handleProjectChange(e.target.value)}
-              className="appearance-none text-sm border rounded-md px-3 py-1.5 pr-8 bg-background hover:border-primary/50 focus:outline-none focus:ring-1 focus:ring-primary cursor-pointer min-w-[180px]"
+              disabled={projectsLoading}
+              aria-busy={projectsLoading}
+              className="appearance-none text-sm border rounded-md px-3 py-1.5 pr-8 bg-background hover:border-primary/50 focus:outline-none focus:ring-1 focus:ring-primary cursor-pointer min-w-[180px] disabled:cursor-wait disabled:opacity-70"
             >
-              <option value="">全部專案</option>
+              <option value="" disabled>
+                {projectsLoading ? "載入專案中…" : projectsError ? "無法載入專案" : "請選擇專案"}
+              </option>
               {projects.map((p) => (
                 <option key={p.id} value={p.id}>
                   {p.name}
                 </option>
               ))}
             </select>
-            <ChevronDown className="absolute right-2 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground pointer-events-none" />
+            {projectsLoading ? (
+              <InlineSpinner className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground pointer-events-none" iconClassName="h-3.5 w-3.5" />
+            ) : (
+              <ChevronDown className="absolute right-2 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground pointer-events-none" />
+            )}
           </div>
         </div>
       </div>
+
+      {projectsError && (
+        <div className="px-6 pt-3">
+          <BackendErrorBanner message={projectsError} onRetry={loadProjects} />
+        </div>
+      )}
 
       {/* 訊息區 */}
       <ScrollArea className="flex-1 px-6 py-4">
@@ -195,7 +281,9 @@ export default function QueryPage() {
               <p className="text-sm text-muted-foreground mt-1">
                 {selectedProject
                   ? `從「${selectedProject.name}」的知識庫中搜尋相關文件並生成答案`
-                  : "從所有專案的知識庫中獲取答案，並標示來源文件"}
+                  : projectsLoading
+                    ? "專案清單載入中…"
+                    : "請先在右上角「查詢範圍」選擇專案，再開始提問（查詢僅限單一專案的知識庫）"}
               </p>
             </div>
             <div className="grid grid-cols-1 gap-2 w-full max-w-lg">
@@ -228,17 +316,61 @@ export default function QueryPage() {
                       <div className="flex items-center gap-1.5 text-xs text-muted-foreground mb-1">
                         <Sparkles className="h-3 w-3" />
                         AI 回答（基於知識庫文件）
-                        {selectedProject && (
+                        {msg.projectName && (
                           <Badge variant="outline" className="text-[10px] py-0 h-4">
-                            {selectedProject.name}
+                            {msg.projectName}
                           </Badge>
                         )}
                       </div>
-                      <Card>
+                      <Card className={msg.isError ? "border-destructive/40 bg-destructive/5" : undefined}>
                         <CardContent className="p-4">
-                          <div className="text-sm whitespace-pre-wrap">{msg.content}</div>
+                          <MaskedText
+                            className="text-sm whitespace-pre-wrap"
+                            content={msg.content}
+                            mappings={msg.mappings}
+                            showOriginal={!showCodes[msg.id]}
+                          />
                         </CardContent>
                       </Card>
+                      {(() => {
+                        const segs = splitMaskedText(msg.content ?? "", msg.mappings)
+                        const hasCodes = segs.some((sg) => sg.kind === "mask")
+                        const restored = countRestored(segs)
+                        const qMasked = msg.questionMasked ?? 0
+                        if (!hasCodes && qMasked <= 0) return null
+                        return (
+                          <div className="flex flex-wrap items-start justify-between gap-2 text-[11px] text-muted-foreground">
+                            <div className="space-y-0.5">
+                              {hasCodes && (
+                                <p className="flex items-center gap-1">
+                                  <ShieldCheck className="h-3 w-3 text-amber-600 shrink-0" />
+                                  標示處為本機對照還原的內容（{restored} 項），AI 平台僅接收代號
+                                </p>
+                              )}
+                              {qMasked > 0 && (
+                                <p className="flex items-center gap-1">
+                                  <ShieldCheck className="h-3 w-3 text-green-600 shrink-0" />
+                                  你的問題中有 {qMasked} 項敏感資料已在送出前遮罩
+                                </p>
+                              )}
+                            </div>
+                            {restored > 0 && (
+                              <button
+                                onClick={() =>
+                                  setShowCodes((prev) => ({ ...prev, [msg.id]: !prev[msg.id] }))
+                                }
+                                className="inline-flex items-center gap-1 rounded-full border px-2 py-0.5 hover:bg-muted hover:text-foreground transition-colors shrink-0"
+                              >
+                                {showCodes[msg.id] ? (
+                                  <><Eye className="h-3 w-3" />顯示原值</>
+                                ) : (
+                                  <><EyeOff className="h-3 w-3" />顯示代號</>
+                                )}
+                              </button>
+                            )}
+                          </div>
+                        )
+                      })()}
                       {msg.sources && msg.sources.length > 0 && (
                         <div className="space-y-1">
                           <p className="text-[11px] text-muted-foreground flex items-center gap-1">
@@ -267,16 +399,7 @@ export default function QueryPage() {
               </div>
             ))}
 
-            {loading && (
-              <div className="flex justify-start">
-                <Card className="max-w-[85%]">
-                  <CardContent className="p-4 flex items-center gap-2 text-sm text-muted-foreground">
-                    <Loader2 className="h-4 w-4 animate-spin" />
-                    正在向量搜尋並生成答案...
-                  </CardContent>
-                </Card>
-              </div>
-            )}
+            {loading && <WaitingBubble />}
             <div ref={bottomRef} />
           </div>
         )}
@@ -315,11 +438,11 @@ export default function QueryPage() {
           <Button
             onClick={() => send()}
             disabled={!input.trim() || loading || !projectId}
-            size="icon"
+            size={loading ? "default" : "icon"}
             className="shrink-0"
           >
             {loading ? (
-              <Loader2 className="h-4 w-4 animate-spin" />
+              <InlineSpinner label="查詢中…" />
             ) : (
               <Send className="h-4 w-4" />
             )}
@@ -329,7 +452,7 @@ export default function QueryPage() {
           {!projectId ? (
             <span className="text-destructive font-medium">請先選擇專案才能送出查詢</span>
           ) : (
-            <span className="text-muted-foreground">Enter 送出 · Shift+Enter 換行 · 答案由本地 Ollama 透過 RAG 語意搜尋生成</span>
+            <span className="text-muted-foreground">Enter 送出 · Shift+Enter 換行 · 答案由 RAG 語意搜尋相關文件後生成</span>
           )}
         </p>
       </div>
@@ -339,7 +462,7 @@ export default function QueryPage() {
           <Separator />
           <div className="px-4 py-2 flex justify-center">
             <button
-              onClick={() => setMessages([])}
+              onClick={() => { setMessages([]); setShowCodes({}) }}
               className="text-xs text-muted-foreground hover:text-foreground transition-colors"
             >
               清除對話記錄

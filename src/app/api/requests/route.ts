@@ -9,10 +9,16 @@ export async function GET() {
     const res = await fetch(`${BACKEND}/api/requests`, {
       signal: AbortSignal.timeout(10_000),
     })
-    if (!res.ok) return NextResponse.json({ requests: [] }, { status: 502 })
+    if (!res.ok) {
+      return NextResponse.json(
+        { error: "後端回應錯誤", detail: `HTTP ${res.status}`, requests: [] },
+        { status: 502 }
+      )
+    }
     return NextResponse.json(await res.json())
-  } catch {
-    return NextResponse.json({ requests: [] })
+  } catch (err) {
+    const detail = err instanceof Error ? err.message : String(err)
+    return NextResponse.json({ error: "後端連線失敗", detail, requests: [] }, { status: 503 })
   }
 }
 

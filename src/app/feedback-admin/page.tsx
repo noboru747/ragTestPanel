@@ -2,6 +2,7 @@
 
 export const runtime = 'edge'
 
+import { ListSkeleton } from "@/components/loading"
 import { useEffect, useState } from "react"
 import { Trash2, RefreshCw } from "lucide-react"
 import { type FeedbackEntry } from "@/components/layout/FeedbackModal"
@@ -112,7 +113,7 @@ export default function FeedbackAdminPage() {
 
       {/* list */}
       {loading ? (
-        <div className="text-center py-16 text-muted-foreground text-sm">載入中...</div>
+        <ListSkeleton rows={4} variant="row" label="回饋記錄載入中…" />
       ) : filtered.length === 0 ? (
         <div className="text-center py-16 text-muted-foreground text-sm">尚無回饋記錄</div>
       ) : (

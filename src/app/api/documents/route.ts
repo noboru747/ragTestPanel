@@ -11,9 +11,15 @@ export async function GET(req: NextRequest) {
     const res = await fetch(`${BACKEND}/api/documents/list${qs ? `?${qs}` : ""}`, {
       signal: AbortSignal.timeout(10_000),
     })
-    if (!res.ok) return NextResponse.json({ documents: [] }, { status: 502 })
+    if (!res.ok) {
+      return NextResponse.json(
+        { error: "後端回應錯誤", detail: `HTTP ${res.status}: ${await res.text()}`, documents: [] },
+        { status: 502 }
+      )
+    }
     return NextResponse.json(await res.json())
-  } catch {
-    return NextResponse.json({ documents: [] })
+  } catch (err) {
+    const detail = err instanceof Error ? err.message : String(err)
+    return NextResponse.json({ error: "後端連線失敗", detail, documents: [] }, { status: 503 })
   }
 }
