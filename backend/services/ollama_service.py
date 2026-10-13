@@ -7,6 +7,10 @@ from config import settings
 class LLMProviderError(RuntimeError):
     """OpenAI 相容 API 回傳錯誤時拋出，訊息內含 HTTP status 與 response body。"""
 
+    def __init__(self, message: str, status_code: int | None = None):
+        super().__init__(message)
+        self.status_code = status_code
+
 
 def _is_openai(provider: str | None) -> bool:
     return (provider or "").strip().lower() == "openai"
@@ -53,7 +57,8 @@ class OllamaService:
     @staticmethod
     def _openai_error(res: httpx.Response, body: str) -> LLMProviderError:
         return LLMProviderError(
-            f"OpenAI-compatible API error: HTTP {res.status_code} {res.request.url} — {body[:2000]}"
+            f"OpenAI-compatible API error: HTTP {res.status_code} {res.request.url} — {body[:2000]}",
+            status_code=res.status_code,
         )
 
     async def _openai_post(self, path: str, model: str, setting_name: str, payload: dict, timeout: int) -> dict:
