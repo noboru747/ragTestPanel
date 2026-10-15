@@ -2,7 +2,7 @@
 遮罩對照表查詢（本機還原顯示用）。
 GET  /api/mask/mappings?project_id=X
 GET  /api/mask/rescan/preview?project_id=X[&categories=person,ip]   補遮 dry-run（不寫 DB）
-POST /api/mask/rescan?project_id=X[&categories=...]                 補遮並更新 documents.content
+POST /api/mask/rescan?project_id=X[&categories=...]                 補遮並更新 documents.content（含 document_chunks.content）
 """
 from fastapi import APIRouter, Depends, Query
 from sqlalchemy import text
@@ -10,6 +10,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from services.db_service import AsyncSessionLocal, get_db
 from services.mask_store import load_mappings, lock_project
+from services.keywords import document_keyword_text
 from services.masking import LABELS, PLACEHOLDER_RE, apply_known_mappings
 
 router = APIRouter()
@@ -62,6 +63,19 @@ async def _rescan(project_id: str, categories: str | None, apply: bool) -> dict:
                         text("UPDATE documents SET content = :c, embedding_stale = TRUE, updated_at = NOW() WHERE id = :id"),
                         {"c": new_content, "id": r.id},
                     )
+                    # 切段也要同步補遮（chunk 內容會送 LLM）；向量待重新入庫 / rechunk 重算。
+                    # char_start / char_end 仍是補遮前的位置（代號長度不同，僅供參考）。
+                    chunks = (await db.execute(
+                        text("SELECT id, content FROM document_chunks WHERE document_id = :d"), {"d": r.id},
+                    )).fetchall()
+                    for ch in chunks:
+                        new_chunk, ccounts = apply_known_mappings(ch.content or "", mappings, cats)
+                        if sum(ccounts.values()):
+                            await db.execute(
+                                text("UPDATE document_chunks SET content = :c, "
+                                     "keywords_tsv = to_tsvector('simple', :kw) WHERE id = :id"),
+                                {"c": new_chunk, "kw": document_keyword_text(new_chunk), "id": ch.id},
+                            )
             stale = (await db.execute(
                 text("SELECT count(*) FROM documents WHERE project_id = :p AND embedding_stale"), {"p": project_id},
             )).scalar() if apply else None

@@ -13,6 +13,7 @@ from services.doc_errors import StructuredError
 from services.mask_store import load_mappings, lock_project, upsert_mappings
 from services.masking import mask_text
 from services.ollama_service import ollama
+from services.usage import set_usage_project
 from services.text_repair import (
     PDF_OCR_DPI, PDF_OCR_LANG, PDF_OCR_MAX_PAGES,
     count_text_chars, decode_text_bytes, diagnose, needs_pdf_ocr, sanitize, tidy_ocr_text,
@@ -72,6 +73,7 @@ async def extract_text(
     """
     do_mask = _truthy(mask)
     do_repair = _truthy(repair)
+    set_usage_project(project_id)
     content = await file.read()
     fname = file.filename or ""
     try:
@@ -318,11 +320,35 @@ def _extract_xlsx(content: bytes) -> str:
     lines = []
     for sheet in wb.worksheets:
         lines.append(f"=== {sheet.title} ===")
-        for row in sheet.iter_rows(values_only=True):
-            row_str = "\t".join(str(c) if c is not None else "" for c in row)
-            if row_str.strip():
-                lines.append(row_str)
+        lines.extend(_table_rows_to_lines(sheet.iter_rows(values_only=True)))
     return "\n".join(lines)
+
+
+def _table_rows_to_lines(rows) -> list[str]:
+    """
+    試算表列 → tab 分隔文字。略過全空列與全空欄、截掉每列尾端空儲存格。
+    （格式化範圍延伸到 XFD 欄 / 數萬列的 xlsx 會讓舊版輸出數千萬個 tab，例如「111年工作紀錄.xlsx」）
+    """
+    cleaned: list[list[str]] = []
+    used_cols: set[int] = set()
+    for row in rows:
+        cells = ["" if c is None else str(c).strip() for c in row]
+        while cells and not cells[-1]:
+            cells.pop()
+        if not cells:
+            continue
+        used_cols.update(i for i, c in enumerate(cells) if c)
+        cleaned.append(cells)
+    if not cleaned:
+        return []
+    keep = sorted(used_cols)
+    out = []
+    for cells in cleaned:
+        vals = [cells[i] if i < len(cells) else "" for i in keep]
+        while vals and not vals[-1]:
+            vals.pop()
+        out.append("\t".join(vals))
+    return out
 
 
 def _extract_xls(content: bytes) -> str:
@@ -333,6 +359,7 @@ def _extract_xls(content: bytes) -> str:
     lines = []
     for sheet in wb.sheets():
         lines.append(f"=== {sheet.name} ===")
+        rows = []
         for r in range(sheet.nrows):
             vals = []
             for cell in sheet.row(r):
@@ -348,9 +375,8 @@ def _extract_xls(content: bytes) -> str:
                 elif cell.ctype in (xlrd.XL_CELL_EMPTY, xlrd.XL_CELL_BLANK):
                     v = ""
                 vals.append(str(v))
-            row_str = "\t".join(vals)
-            if row_str.strip():
-                lines.append(row_str)
+            rows.append(vals)
+        lines.extend(_table_rows_to_lines(rows))
     return "\n".join(lines)
 
 

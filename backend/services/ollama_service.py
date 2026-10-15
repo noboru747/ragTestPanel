@@ -1,7 +1,9 @@
 import json
+import time
 import httpx
 from typing import AsyncGenerator
 from config import settings
+from services.usage import record_usage, usage_from_ollama, usage_from_openai
 
 
 class LLMProviderError(RuntimeError):
@@ -32,10 +34,31 @@ def _image_mime(filename: str) -> str:
     }.get(ext, "image/png")
 
 
+def _error_code(exc: BaseException) -> str:
+    sc = getattr(exc, "status_code", None)
+    if isinstance(sc, int):
+        return f"http_{sc}"
+    if isinstance(exc, httpx.HTTPStatusError):
+        return f"http_{exc.response.status_code}"
+    if isinstance(exc, httpx.TimeoutException):
+        return "timeout"
+    return type(exc).__name__
+
+
+def _ms(t0: float) -> float:
+    return (time.perf_counter() - t0) * 1000
+
+
 OCR_PROMPT = "請完整提取以下圖片中的所有文字內容，保持原始排版結構。"
 
 
 class OllamaService:
+    """
+    所有呼叫都會寫一筆 llm_usage（services.usage，背景寫入、失敗不影響主流程）：
+      openai：回應 usage（prompt/completion/total_tokens）；缺少時以字數估算並標 estimated
+      ollama：prompt_eval_count / eval_count；缺少時估算
+    """
+
     def __init__(self):
         self.base_url = settings.ollama_base_url
 
@@ -79,7 +102,7 @@ class OllamaService:
         except (KeyError, IndexError, TypeError) as e:
             raise LLMProviderError(f"OpenAI-compatible API 回應格式無法解析（{e}）：{json.dumps(data, ensure_ascii=False)[:2000]}")
 
-    async def _openai_chat(self, prompt: str, timeout: int) -> str:
+    async def _openai_chat(self, prompt: str, timeout: int) -> tuple[str, dict]:
         payload = {
             "model": settings.openai_model,
             "messages": [{"role": "user", "content": prompt}],
@@ -90,9 +113,9 @@ class OllamaService:
             "chat/completions", settings.openai_model, "OPENAI_MODEL", payload,
             max(timeout, settings.openai_timeout),
         )
-        return self._chat_content(data)
+        return self._chat_content(data), data
 
-    async def _openai_chat_stream(self, prompt: str) -> AsyncGenerator[str, None]:
+    async def _openai_chat_stream(self, prompt: str, usage_box: dict) -> AsyncGenerator[str, None]:
         url = self._openai_endpoint("chat/completions", settings.openai_model, "OPENAI_MODEL")
         payload = {
             "model": settings.openai_model,
@@ -117,6 +140,10 @@ class OllamaService:
                         continue
                     if "error" in data:
                         raise LLMProviderError(f"OpenAI-compatible stream error: {data_str[:2000]}")
+                    if data.get("usage"):
+                        usage_box["data"] = data          # 最後事件可能帶 usage
+                    if data.get("id"):
+                        usage_box["id"] = data["id"]
                     choices = data.get("choices") or []
                     if not choices:
                         continue
@@ -126,61 +153,141 @@ class OllamaService:
 
     # ── 公開介面（routers 使用）────────────────────────────────────────
     async def chat(self, prompt: str, model: str | None = None, timeout: int = 120) -> str:
+        t0 = time.perf_counter()
         if _use_openai():
             # openai 模式忽略呼叫方傳入的 Ollama model 名稱，一律用 settings.openai_model
-            return await self._openai_chat(prompt, timeout)
+            meta = dict(provider="openai", model=settings.openai_model, operation="chat", endpoint="chat/completions")
+            try:
+                content, data = await self._openai_chat(prompt, timeout)
+            except Exception as exc:
+                record_usage(**meta, usage=None, prompt_text=prompt, latency_ms=_ms(t0), success=False,
+                             error_code=_error_code(exc))
+                raise
+            record_usage(**meta, usage=usage_from_openai(data), prompt_text=prompt, completion_text=content,
+                         latency_ms=_ms(t0), request_id=data.get("id"))
+            return content
         model = model or settings.chat_model
-        async with httpx.AsyncClient(timeout=timeout) as client:
-            res = await client.post(
-                f"{self.base_url}/api/generate",
-                json={"model": model, "prompt": prompt, "stream": False},
-            )
-            res.raise_for_status()
-            return res.json()["response"]
+        meta = dict(provider="ollama", model=model, operation="chat", endpoint="/api/generate")
+        try:
+            async with httpx.AsyncClient(timeout=timeout) as client:
+                res = await client.post(
+                    f"{self.base_url}/api/generate",
+                    json={"model": model, "prompt": prompt, "stream": False},
+                )
+                res.raise_for_status()
+                data = res.json()
+        except Exception as exc:
+            record_usage(**meta, usage=None, prompt_text=prompt, latency_ms=_ms(t0), success=False,
+                         error_code=_error_code(exc))
+            raise
+        record_usage(**meta, usage=usage_from_ollama(data), prompt_text=prompt,
+                     completion_text=data.get("response", ""), latency_ms=_ms(t0))
+        return data["response"]
 
     async def chat_stream(self, prompt: str, model: str | None = None) -> AsyncGenerator[str, None]:
+        t0 = time.perf_counter()
+        parts: list[str] = []
+        box: dict = {}
+        ok, err = True, None
         if _use_openai():
-            async for token in self._openai_chat_stream(prompt):
-                yield token
-            return
-        model = model or settings.chat_model
-        async with httpx.AsyncClient(timeout=120) as client:
-            async with client.stream(
-                "POST",
-                f"{self.base_url}/api/generate",
-                json={"model": model, "prompt": prompt, "stream": True},
-            ) as res:
-                async for line in res.aiter_lines():
-                    if line:
-                        data = json.loads(line)
-                        if token := data.get("response"):
-                            yield token
-                        if data.get("done"):
-                            break
+            meta = dict(provider="openai", model=settings.openai_model, operation="chat", endpoint="chat/completions")
+        else:
+            model = model or settings.chat_model
+            meta = dict(provider="ollama", model=model, operation="chat", endpoint="/api/generate")
+        try:
+            if _use_openai():
+                async for token in self._openai_chat_stream(prompt, box):
+                    parts.append(token)
+                    yield token
+            else:
+                async with httpx.AsyncClient(timeout=120) as client:
+                    async with client.stream(
+                        "POST",
+                        f"{self.base_url}/api/generate",
+                        json={"model": model, "prompt": prompt, "stream": True},
+                    ) as res:
+                        async for line in res.aiter_lines():
+                            if line:
+                                data = json.loads(line)
+                                if token := data.get("response"):
+                                    parts.append(token)
+                                    yield token
+                                if data.get("done"):
+                                    box["data"] = data
+                                    break
+        except GeneratorExit:            # 呼叫端提早關閉串流（例如使用者中斷）→ 仍記錄已產生部分
+            raise
+        except BaseException as exc:
+            ok, err = False, _error_code(exc)
+            raise
+        finally:
+            usage = (usage_from_openai(box.get("data")) if meta["provider"] == "openai"
+                     else usage_from_ollama(box.get("data")))
+            record_usage(**meta, usage=usage, prompt_text=prompt, completion_text="".join(parts),
+                         latency_ms=_ms(t0), success=ok, error_code=err, request_id=box.get("id"))
 
     async def embed(self, text: str) -> list[float]:
-        # 安全網：無論呼叫方是否截斷，都不超過 embed_max_chars
-        text = text[: settings.embed_max_chars]
+        return (await self.embed_many([text]))[0]
+
+    async def embed_many(self, texts: list[str], batch_size: int | None = None) -> list[list[float]]:
+        """
+        多段文字 embedding（依序、不併發）。
+        openai：/embeddings 的 input 陣列，一次 ≤ EMBED_BATCH_SIZE（預設 16）段，每批一筆 llm_usage
+        ollama：/api/embed 一次一段（nomic-embed-text 的 batch 上限較小，保守處理）
+        每段都會截斷到 embed_max_chars（安全網）。
+        """
+        texts = [(t or "")[: settings.embed_max_chars] for t in texts]
+        out: list[list[float]] = []
         if _is_openai(settings.embed_provider):
-            data = await self._openai_post(
-                "embeddings", settings.openai_embed_model, "OPENAI_EMBED_MODEL",
-                {"model": settings.openai_embed_model, "input": text},
-                settings.openai_timeout,
-            )
-            try:
-                return data["data"][0]["embedding"]
-            except (KeyError, IndexError, TypeError) as e:
-                raise LLMProviderError(f"embedding 回應格式無法解析（{e}）：{json.dumps(data)[:500]}")
+            bs = max(1, batch_size or settings.embed_batch_size)
+            model = settings.openai_embed_model
+            for i in range(0, len(texts), bs):
+                batch = texts[i:i + bs]
+                t0 = time.perf_counter()
+                meta = dict(provider="openai", model=model, operation="embed", endpoint="embeddings")
+                try:
+                    data = await self._openai_post(
+                        "embeddings", model, "OPENAI_EMBED_MODEL",
+                        {"model": model, "input": batch if len(batch) > 1 else batch[0]},
+                        settings.openai_timeout,
+                    )
+                    items = sorted(data["data"], key=lambda x: x.get("index", 0))
+                    vecs = [x["embedding"] for x in items]
+                    if len(vecs) != len(batch):
+                        raise LLMProviderError(f"embedding 回傳筆數 {len(vecs)} ≠ 送出 {len(batch)}")
+                except (KeyError, IndexError, TypeError) as e:
+                    record_usage(**meta, usage=None, prompt_text="".join(batch), latency_ms=_ms(t0),
+                                 success=False, error_code="bad_response")
+                    raise LLMProviderError(f"embedding 回應格式無法解析（{e}）")
+                except Exception as exc:
+                    record_usage(**meta, usage=None, prompt_text="".join(batch), latency_ms=_ms(t0),
+                                 success=False, error_code=_error_code(exc))
+                    raise
+                record_usage(**meta, usage=usage_from_openai(data), prompt_text="".join(batch), latency_ms=_ms(t0))
+                out.extend(vecs)
+            return out
+
+        model = settings.embed_model
         async with httpx.AsyncClient(timeout=120) as client:
-            res = await client.post(
-                f"{self.base_url}/api/embeddings",
-                json={"model": settings.embed_model, "prompt": text},
-            )
-            res.raise_for_status()
-            return res.json()["embedding"]
+            for t in texts:
+                t0 = time.perf_counter()
+                meta = dict(provider="ollama", model=model, operation="embed", endpoint="/api/embed")
+                try:
+                    res = await client.post(f"{self.base_url}/api/embed", json={"model": model, "input": t})
+                    res.raise_for_status()
+                    data = res.json()
+                    vec = data["embeddings"][0]
+                except Exception as exc:
+                    record_usage(**meta, usage=None, prompt_text=t, latency_ms=_ms(t0), success=False,
+                                 error_code=_error_code(exc))
+                    raise
+                record_usage(**meta, usage=usage_from_ollama(data), prompt_text=t, latency_ms=_ms(t0))
+                out.append(vec)
+        return out
 
     async def vision_ocr(self, image_base64: str, filename: str = "") -> str:
         prompt = f"{OCR_PROMPT}文件名稱：{filename}"
+        t0 = time.perf_counter()
         if _is_openai(settings.vision_provider):
             mime = _image_mime(filename)
             payload = {
@@ -195,23 +302,42 @@ class OllamaService:
                 "stream": False,
                 "temperature": 0,
             }
-            data = await self._openai_post(
-                "chat/completions", settings.openai_vision_model, "OPENAI_VISION_MODEL",
-                payload, settings.openai_timeout,
-            )
-            return self._chat_content(data)
-        async with httpx.AsyncClient(timeout=180) as client:
-            res = await client.post(
-                f"{self.base_url}/api/generate",
-                json={
-                    "model": settings.vision_model,
-                    "prompt": prompt,
-                    "images": [image_base64],
-                    "stream": False,
-                },
-            )
-            res.raise_for_status()
-            return res.json()["response"]
+            meta = dict(provider="openai", model=settings.openai_vision_model, operation="vision",
+                        endpoint="chat/completions")
+            try:
+                data = await self._openai_post(
+                    "chat/completions", settings.openai_vision_model, "OPENAI_VISION_MODEL",
+                    payload, settings.openai_timeout,
+                )
+                content = self._chat_content(data)
+            except Exception as exc:
+                record_usage(**meta, usage=None, prompt_text=prompt, latency_ms=_ms(t0), success=False,
+                             error_code=_error_code(exc))
+                raise
+            record_usage(**meta, usage=usage_from_openai(data), prompt_text=prompt, completion_text=content,
+                         latency_ms=_ms(t0), request_id=data.get("id"))
+            return content
+        meta = dict(provider="ollama", model=settings.vision_model, operation="vision", endpoint="/api/generate")
+        try:
+            async with httpx.AsyncClient(timeout=180) as client:
+                res = await client.post(
+                    f"{self.base_url}/api/generate",
+                    json={
+                        "model": settings.vision_model,
+                        "prompt": prompt,
+                        "images": [image_base64],
+                        "stream": False,
+                    },
+                )
+                res.raise_for_status()
+                data = res.json()
+        except Exception as exc:
+            record_usage(**meta, usage=None, prompt_text=prompt, latency_ms=_ms(t0), success=False,
+                         error_code=_error_code(exc))
+            raise
+        record_usage(**meta, usage=usage_from_ollama(data), prompt_text=prompt,
+                     completion_text=data.get("response", ""), latency_ms=_ms(t0))
+        return data["response"]
 
     async def list_models(self) -> list[str]:
         if _use_openai():

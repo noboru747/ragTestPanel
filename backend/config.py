@@ -28,6 +28,27 @@ class Settings(BaseSettings):
     vision_provider: str = "ollama"           # "ollama" | "openai"
     openai_vision_model: str = "gemma-4-31B-it"
 
+    # openai embeddings 一次送幾段（/embeddings input 陣列，ModaOne 實測支援）
+    embed_batch_size: int = 16
+
+    # 切段 RAG（CHUNK_SIZE / CHUNK_OVERLAP / MAX_DOC_CHARS 由 services/chunker.py 讀環境變數）
+    rag_top_k: int = 8                        # 查詢取前 K 段
+    hybrid_vector_weight: float = 0.7
+    hybrid_keyword_weight: float = 0.3
+    context_max_chars: int = 0                # 0 = 依 provider 預設（openai 12000 / ollama 3000）
+
+    # 用量儀表板（/api/usage/summary）：points 只計 provider=openai 的 tokens
+    usage_quota_points: float = 1000
+    usage_tokens_per_point: int = 100000
+    usage_period_start: str = ""              # ISO 日期，例如 2026-07-01；空白 = 不限
+    usage_period_end: str = ""
+
+    @property
+    def effective_context_max_chars(self) -> int:
+        if self.context_max_chars > 0:
+            return self.context_max_chars
+        return 12000 if (self.llm_provider or "").strip().lower() == "openai" else 3000
+
     class Config:
         env_file = ".env"
 

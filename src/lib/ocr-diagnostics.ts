@@ -61,6 +61,7 @@ export const ERROR_CODE_INFO: Record<string, { title: string; explain: string; r
 
 const REPAIR_LABELS: Record<string, string> = {
   strip_nul: "移除空字元",
+  strip_control: "移除控制字元",
   nfkc: "Unicode 正規化",
   pdf_ocr: "改用 OCR",
 }

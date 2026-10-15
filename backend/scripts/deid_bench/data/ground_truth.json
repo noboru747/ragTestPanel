@@ -1,0 +1,1273 @@
+[
+ {
+  "doc_id": "d01_attendance",
+  "type": "差勤表",
+  "chars": 2432,
+  "sensitive": [
+   {
+    "text": "謝韞緹",
+    "category": "person"
+   },
+   {
+    "text": "吳謙羿",
+    "category": "person"
+   },
+   {
+    "text": "魏甯瀅",
+    "category": "person"
+   },
+   {
+    "text": "林綺韞",
+    "category": "person"
+   },
+   {
+    "text": "曾馥芃",
+    "category": "person"
+   },
+   {
+    "text": "羅沅湉",
+    "category": "person"
+   },
+   {
+    "text": "翁綺曜",
+    "category": "person"
+   },
+   {
+    "text": "許瀅舫",
+    "category": "person"
+   }
+  ],
+  "non_sensitive": [
+   {
+    "text": "雲杉網路工程有限公司",
+    "kind": "org"
+   },
+   {
+    "text": "v2.3.1",
+    "kind": "version"
+   },
+   {
+    "text": "勞動基準法第30條",
+    "kind": "law"
+   }
+  ]
+ },
+ {
+  "doc_id": "d02_payroll",
+  "type": "薪資請款明細",
+  "chars": 1018,
+  "sensitive": [
+   {
+    "text": "趙岑霈",
+    "category": "person"
+   },
+   {
+    "text": "68,500",
+    "category": "salary"
+   },
+   {
+    "text": "1,575",
+    "category": "salary"
+   },
+   {
+    "text": "1,061",
+    "category": "salary"
+   },
+   {
+    "text": "4,110",
+    "category": "salary"
+   },
+   {
+    "text": "65,864",
+    "category": "salary"
+   },
+   {
+    "text": "魏瑀紘",
+    "category": "person"
+   },
+   {
+    "text": "48,400",
+    "category": "salary"
+   },
+   {
+    "text": "1,113",
+    "category": "salary"
+   },
+   {
+    "text": "750",
+    "category": "salary"
+   },
+   {
+    "text": "2,904",
+    "category": "salary"
+   },
+   {
+    "text": "46,537",
+    "category": "salary"
+   },
+   {
+    "text": "鍾甯靚",
+    "category": "person"
+   },
+   {
+    "text": "43,300",
+    "category": "salary"
+   },
+   {
+    "text": "995",
+    "category": "salary"
+   },
+   {
+    "text": "671",
+    "category": "salary"
+   },
+   {
+    "text": "2,598",
+    "category": "salary"
+   },
+   {
+    "text": "41,634",
+    "category": "salary"
+   },
+   {
+    "text": "鍾岑曜",
+    "category": "person"
+   },
+   {
+    "text": "41,700",
+    "category": "salary"
+   },
+   {
+    "text": "959",
+    "category": "salary"
+   },
+   {
+    "text": "646",
+    "category": "salary"
+   },
+   {
+    "text": "2,502",
+    "category": "salary"
+   },
+   {
+    "text": "40,095",
+    "category": "salary"
+   },
+   {
+    "text": "黃緹澂",
+    "category": "person"
+   },
+   {
+    "text": "39,800",
+    "category": "salary"
+   },
+   {
+    "text": "915",
+    "category": "salary"
+   },
+   {
+    "text": "616",
+    "category": "salary"
+   },
+   {
+    "text": "2,388",
+    "category": "salary"
+   },
+   {
+    "text": "38,269",
+    "category": "salary"
+   },
+   {
+    "text": "潘璟禕",
+    "category": "person"
+   },
+   {
+    "text": "96,500",
+    "category": "salary"
+   },
+   {
+    "text": "2,219",
+    "category": "salary"
+   },
+   {
+    "text": "1,495",
+    "category": "salary"
+   },
+   {
+    "text": "5,790",
+    "category": "salary"
+   },
+   {
+    "text": "92,786",
+    "category": "salary"
+   },
+   {
+    "text": "盧瑀棠",
+    "category": "person"
+   },
+   {
+    "text": "12,151",
+    "category": "salary"
+   },
+   {
+    "text": "沈紘璇",
+    "category": "person"
+   },
+   {
+    "text": "1,992",
+    "category": "salary"
+   },
+   {
+    "text": "翁翊馥",
+    "category": "person"
+   },
+   {
+    "text": "12,030",
+    "category": "salary"
+   },
+   {
+    "text": "呂玹芃",
+    "category": "person"
+   },
+   {
+    "text": "5,008",
+    "category": "salary"
+   },
+   {
+    "text": "盧曜羿",
+    "category": "person"
+   },
+   {
+    "text": "林湉璇",
+    "category": "person"
+   }
+  ],
+  "non_sensitive": [
+   {
+    "text": "雲杉網路工程有限公司",
+    "kind": "org"
+   },
+   {
+    "text": "PRJ-115-0087",
+    "kind": "contract_no"
+   },
+   {
+    "text": "3,860,000",
+    "kind": "contract_amount"
+   },
+   {
+    "text": "第5條第2項",
+    "kind": "clause"
+   },
+   {
+    "text": "965,000",
+    "kind": "contract_amount"
+   }
+  ]
+ },
+ {
+  "doc_id": "d03_resume",
+  "type": "個人履歷",
+  "chars": 1300,
+  "sensitive": [
+   {
+    "text": "沈曜舫",
+    "category": "person"
+   },
+   {
+    "text": "2000/09/01",
+    "category": "birth_date"
+   },
+   {
+    "text": "0989-217-176",
+    "category": "phone"
+   },
+   {
+    "text": "a.htucfph12@example.com",
+    "category": "email"
+   },
+   {
+    "text": "桃園市桃園區和平東路二段47巷176號8樓",
+    "category": "address"
+   },
+   {
+    "text": "58,000",
+    "category": "salary"
+   },
+   {
+    "text": "顏羿曜",
+    "category": "person"
+   },
+   {
+    "text": "0954800227",
+    "category": "phone"
+   },
+   {
+    "text": "簡瀅霈",
+    "category": "person"
+   }
+  ],
+  "non_sensitive": [
+   {
+    "text": "藍岫資訊服務股份有限公司",
+    "kind": "org"
+   },
+   {
+    "text": "北辰系統整合有限公司",
+    "kind": "org"
+   },
+   {
+    "text": "雲杉網路工程有限公司",
+    "kind": "org"
+   }
+  ]
+ },
+ {
+  "doc_id": "d04_accounts",
+  "type": "帳號清單表格",
+  "chars": 1423,
+  "sensitive": [
+   {
+    "text": "黃芃諭",
+    "category": "person"
+   },
+   {
+    "text": "kspax51",
+    "category": "account"
+   },
+   {
+    "text": "梁皓玹",
+    "category": "person"
+   },
+   {
+    "text": "ap_rmuu",
+    "category": "account"
+   },
+   {
+    "text": "魏朔芃",
+    "category": "person"
+   },
+   {
+    "text": "yej82",
+    "category": "account"
+   },
+   {
+    "text": "鍾澔岑",
+    "category": "person"
+   },
+   {
+    "text": "kmqw67",
+    "category": "account"
+   },
+   {
+    "text": "葉彧蓁",
+    "category": "person"
+   },
+   {
+    "text": "ykt34",
+    "category": "account"
+   },
+   {
+    "text": "江湉謙",
+    "category": "person"
+   },
+   {
+    "text": "adm_swrj",
+    "category": "account"
+   },
+   {
+    "text": "邱昕嵐",
+    "category": "person"
+   },
+   {
+    "text": "dulr96",
+    "category": "account"
+   },
+   {
+    "text": "詹朔謙",
+    "category": "person"
+   },
+   {
+    "text": "efh56",
+    "category": "account"
+   },
+   {
+    "text": "呂湉芃",
+    "category": "person"
+   },
+   {
+    "text": "adm_tule",
+    "category": "account"
+   },
+   {
+    "text": "楊澂彧",
+    "category": "person"
+   },
+   {
+    "text": "rzwl71",
+    "category": "account"
+   },
+   {
+    "text": "邱蘅澂",
+    "category": "person"
+   },
+   {
+    "text": "ap_nfky",
+    "category": "account"
+   },
+   {
+    "text": "賴岑謙",
+    "category": "person"
+   },
+   {
+    "text": "qry62",
+    "category": "account"
+   },
+   {
+    "text": "鍾皓嵐",
+    "category": "person"
+   },
+   {
+    "text": "adm_twou",
+    "category": "account"
+   },
+   {
+    "text": "何沅湉",
+    "category": "person"
+   },
+   {
+    "text": "wlhn34",
+    "category": "account"
+   },
+   {
+    "text": "羅芃韞",
+    "category": "person"
+   },
+   {
+    "text": "xp.rnqzy",
+    "category": "account"
+   },
+   {
+    "text": "陳嵐芃",
+    "category": "person"
+   },
+   {
+    "text": "os.kfsam",
+    "category": "account"
+   },
+   {
+    "text": "吳珮玹",
+    "category": "person"
+   },
+   {
+    "text": "wzvpo5",
+    "category": "account"
+   },
+   {
+    "text": "張璇棠",
+    "category": "person"
+   },
+   {
+    "text": "fi.wkt",
+    "category": "account"
+   },
+   {
+    "text": "翁昕韞",
+    "category": "person"
+   },
+   {
+    "text": "svc_xlna",
+    "category": "account"
+   },
+   {
+    "text": "簡緹琤",
+    "category": "person"
+   },
+   {
+    "text": "adm_tzzz",
+    "category": "account"
+   },
+   {
+    "text": "彭渟瑀",
+    "category": "person"
+   },
+   {
+    "text": "jv.lcsu",
+    "category": "account"
+   },
+   {
+    "text": "莊靚芃",
+    "category": "person"
+   },
+   {
+    "text": "ap_izxe",
+    "category": "account"
+   },
+   {
+    "text": "朱芃羿",
+    "category": "person"
+   },
+   {
+    "text": "xt.gsv",
+    "category": "account"
+   },
+   {
+    "text": "蕭蘅綺",
+    "category": "person"
+   },
+   {
+    "text": "ap_kuua",
+    "category": "account"
+   },
+   {
+    "text": "廖棠皓",
+    "category": "person"
+   },
+   {
+    "text": "azdz11",
+    "category": "account"
+   },
+   {
+    "text": "曾霈澂",
+    "category": "person"
+   },
+   {
+    "text": "ts.ikdpqz",
+    "category": "account"
+   },
+   {
+    "text": "陳妘彧",
+    "category": "person"
+   },
+   {
+    "text": "svc_biar",
+    "category": "account"
+   },
+   {
+    "text": "盧霈渟",
+    "category": "person"
+   },
+   {
+    "text": "be.cpreg",
+    "category": "account"
+   },
+   {
+    "text": "許瑀馥",
+    "category": "person"
+   },
+   {
+    "text": "adm_siay",
+    "category": "account"
+   },
+   {
+    "text": "魏諭蘅",
+    "category": "person"
+   },
+   {
+    "text": "ap_sler",
+    "category": "account"
+   },
+   {
+    "text": "林蘅岑",
+    "category": "person"
+   },
+   {
+    "text": "svc_hzsa",
+    "category": "account"
+   },
+   {
+    "text": "呂澂嵐",
+    "category": "person"
+   },
+   {
+    "text": "pysi26",
+    "category": "account"
+   },
+   {
+    "text": "adm_xhgh",
+    "category": "account"
+   },
+   {
+    "text": "qji69",
+    "category": "account"
+   },
+   {
+    "text": "ljfc54",
+    "category": "account"
+   },
+   {
+    "text": "pxrh18",
+    "category": "account"
+   },
+   {
+    "text": "潘暄瀅",
+    "category": "person"
+   },
+   {
+    "text": "朱澔翊",
+    "category": "person"
+   }
+  ],
+  "non_sensitive": [
+   {
+    "text": "v5.2.0",
+    "kind": "version"
+   }
+  ]
+ },
+ {
+  "doc_id": "d05_contract",
+  "type": "聘僱合約",
+  "chars": 1097,
+  "sensitive": [
+   {
+    "text": "潘嵐蓁",
+    "category": "person"
+   },
+   {
+    "text": "呂暄嵐",
+    "category": "person"
+   },
+   {
+    "text": "B271073879",
+    "category": "national_id"
+   },
+   {
+    "text": "高雄市三民區和平東路95號",
+    "category": "address"
+   },
+   {
+    "text": "0954 924 175",
+    "category": "phone"
+   },
+   {
+    "text": "52,000",
+    "category": "salary"
+   },
+   {
+    "text": "4824-539-200732",
+    "category": "bank_account"
+   }
+  ],
+  "non_sensitive": [
+   {
+    "text": "北辰系統整合有限公司",
+    "kind": "org"
+   },
+   {
+    "text": "臺北市內湖區瑞光路999號（虛構）",
+    "kind": "public_address"
+   },
+   {
+    "text": "第一條",
+    "kind": "clause"
+   },
+   {
+    "text": "某某商業銀行",
+    "kind": "org"
+   },
+   {
+    "text": "勞動基準法",
+    "kind": "law"
+   }
+  ]
+ },
+ {
+  "doc_id": "d06_quarantine",
+  "type": "居家隔離通知書",
+  "chars": 920,
+  "sensitive": [
+   {
+    "text": "柯諭皓",
+    "category": "person"
+   },
+   {
+    "text": "E220060269",
+    "category": "national_id"
+   },
+   {
+    "text": "1982/10/28",
+    "category": "birth_date"
+   },
+   {
+    "text": "臺北市松山區民生東路二段65號15樓",
+    "category": "address"
+   },
+   {
+    "text": "0967205586",
+    "category": "phone"
+   },
+   {
+    "text": "李蓁澂",
+    "category": "person"
+   },
+   {
+    "text": "E270598432",
+    "category": "national_id"
+   },
+   {
+    "text": "民國66年8月19日",
+    "category": "birth_date"
+   },
+   {
+    "text": "桃園市中壢區和平東路131號6樓",
+    "category": "address"
+   },
+   {
+    "text": "0916145051",
+    "category": "phone"
+   },
+   {
+    "text": "賴蓁昀",
+    "category": "person"
+   },
+   {
+    "text": "A214952789",
+    "category": "national_id"
+   },
+   {
+    "text": "1994/04/10",
+    "category": "birth_date"
+   },
+   {
+    "text": "臺中市南屯區中正路三段111號12樓",
+    "category": "address"
+   },
+   {
+    "text": "0915 278 138",
+    "category": "phone"
+   },
+   {
+    "text": "周澂翊",
+    "category": "person"
+   },
+   {
+    "text": "386224224",
+    "category": "national_id"
+   },
+   {
+    "text": "民國69年12月10日",
+    "category": "birth_date"
+   },
+   {
+    "text": "高雄市左營區中山路179號",
+    "category": "address"
+   },
+   {
+    "text": "0979-764-976",
+    "category": "phone"
+   },
+   {
+    "text": "何瑀沅",
+    "category": "person"
+   },
+   {
+    "text": "(02)8145-2883#700",
+    "category": "phone"
+   }
+  ],
+  "non_sensitive": [
+   {
+    "text": "某某市政府衛生局",
+    "kind": "org"
+   },
+   {
+    "text": "傳染病防治法第48條",
+    "kind": "law"
+   },
+   {
+    "text": "1922",
+    "kind": "public_phone"
+   }
+  ]
+ },
+ {
+  "doc_id": "d07_meeting",
+  "type": "會議紀錄",
+  "chars": 1064,
+  "sensitive": [
+   {
+    "text": "劉諭皓",
+    "category": "person"
+   },
+   {
+    "text": "胡綺沅",
+    "category": "person"
+   },
+   {
+    "text": "余玹嵐",
+    "category": "person"
+   },
+   {
+    "text": "林芃朔",
+    "category": "person"
+   },
+   {
+    "text": "廖璇沅",
+    "category": "person"
+   },
+   {
+    "text": "張朔禕",
+    "category": "person"
+   }
+  ],
+  "non_sensitive": [
+   {
+    "text": "臺灣新竹地方法院",
+    "kind": "org"
+   },
+   {
+    "text": "本院第二會議室",
+    "kind": "location"
+   },
+   {
+    "text": "9月10日",
+    "kind": "date"
+   },
+   {
+    "text": "10月版更",
+    "kind": "date"
+   },
+   {
+    "text": "420,000",
+    "kind": "contract_amount"
+   }
+  ]
+ },
+ {
+  "doc_id": "d08_transfer",
+  "type": "轉帳明細",
+  "chars": 1095,
+  "sensitive": [
+   {
+    "text": "78,670",
+    "category": "salary"
+   },
+   {
+    "text": "王綺澔",
+    "category": "person"
+   },
+   {
+    "text": "669-64-182876-7",
+    "category": "bank_account"
+   },
+   {
+    "text": "59,980",
+    "category": "salary"
+   },
+   {
+    "text": "盧紘霈",
+    "category": "person"
+   },
+   {
+    "text": "693-66-893192-5",
+    "category": "bank_account"
+   },
+   {
+    "text": "羅昀曜",
+    "category": "person"
+   },
+   {
+    "text": "4033-347-608467",
+    "category": "bank_account"
+   },
+   {
+    "text": "66,650",
+    "category": "salary"
+   },
+   {
+    "text": "余皓妘",
+    "category": "person"
+   },
+   {
+    "text": "732-92-315603-3",
+    "category": "bank_account"
+   },
+   {
+    "text": "20,890",
+    "category": "salary"
+   },
+   {
+    "text": "張琤蘅",
+    "category": "person"
+   },
+   {
+    "text": "934-29-331711-5",
+    "category": "bank_account"
+   },
+   {
+    "text": "26,650",
+    "category": "salary"
+   },
+   {
+    "text": "徐渟靚",
+    "category": "person"
+   },
+   {
+    "text": "6883-539-353731",
+    "category": "bank_account"
+   },
+   {
+    "text": "柯彧翊",
+    "category": "person"
+   },
+   {
+    "text": "1092-924-326055",
+    "category": "bank_account"
+   },
+   {
+    "text": "54,230",
+    "category": "salary"
+   },
+   {
+    "text": "吳嵐舫",
+    "category": "person"
+   },
+   {
+    "text": "405-16-515881-3",
+    "category": "bank_account"
+   },
+   {
+    "text": "33,650",
+    "category": "salary"
+   },
+   {
+    "text": "蘇昕琤",
+    "category": "person"
+   },
+   {
+    "text": "3263-341-726145",
+    "category": "bank_account"
+   },
+   {
+    "text": "39,640",
+    "category": "salary"
+   },
+   {
+    "text": "洪朔曜",
+    "category": "person"
+   },
+   {
+    "text": "354-37-845331-6",
+    "category": "bank_account"
+   },
+   {
+    "text": "彭甯瀅",
+    "category": "person"
+   },
+   {
+    "text": "4550-766-109656",
+    "category": "bank_account"
+   },
+   {
+    "text": "周璇翊",
+    "category": "person"
+   },
+   {
+    "text": "4101-163-914721",
+    "category": "bank_account"
+   },
+   {
+    "text": "73,030",
+    "category": "salary"
+   },
+   {
+    "text": "郭璟澂",
+    "category": "person"
+   },
+   {
+    "text": "4287-270-398555",
+    "category": "bank_account"
+   },
+   {
+    "text": "13,140",
+    "category": "salary"
+   },
+   {
+    "text": "彭岑瀅",
+    "category": "person"
+   },
+   {
+    "text": "718-24-759212-3",
+    "category": "bank_account"
+   },
+   {
+    "text": "彭昕羿",
+    "category": "person"
+   },
+   {
+    "text": "271-74-840189-6",
+    "category": "bank_account"
+   },
+   {
+    "text": "郭彧岑",
+    "category": "person"
+   },
+   {
+    "text": "9524-355-292553",
+    "category": "bank_account"
+   },
+   {
+    "text": "31,270",
+    "category": "salary"
+   },
+   {
+    "text": "黃筠朔",
+    "category": "person"
+   },
+   {
+    "text": "822-83-740500-7",
+    "category": "bank_account"
+   },
+   {
+    "text": "12,670",
+    "category": "salary"
+   },
+   {
+    "text": "邱紘暄",
+    "category": "person"
+   },
+   {
+    "text": "211-79-447407-4",
+    "category": "bank_account"
+   },
+   {
+    "text": "邱綺芃",
+    "category": "person"
+   },
+   {
+    "text": "余瀅芃",
+    "category": "person"
+   }
+  ],
+  "non_sensitive": [
+   {
+    "text": "北辰系統整合有限公司",
+    "kind": "org"
+   },
+   {
+    "text": "公司營運帳戶（帳號詳財務系統）",
+    "kind": "note"
+   }
+  ]
+ },
+ {
+  "doc_id": "d09_ops",
+  "type": "系統維運報告",
+  "chars": 1331,
+  "sensitive": [
+   {
+    "text": "蘇芃諭",
+    "category": "person"
+   },
+   {
+    "text": "10.108.163.201",
+    "category": "ip"
+   },
+   {
+    "text": "10.200.188.41",
+    "category": "ip"
+   },
+   {
+    "text": "192.168.47.46",
+    "category": "ip"
+   },
+   {
+    "text": "192.168.187.152",
+    "category": "ip"
+   },
+   {
+    "text": "http://10.108.163.201:8080/admin/console",
+    "category": "url_internal"
+   },
+   {
+    "text": "https://erp.chenxi.corp/login",
+    "category": "url_internal"
+   },
+   {
+    "text": "https://gitlab.intra.example.local/ops/deploy",
+    "category": "url_internal"
+   },
+   {
+    "text": "10.122.138.85",
+    "category": "ip"
+   },
+   {
+    "text": "192.168.206.151",
+    "category": "ip"
+   },
+   {
+    "text": "zt.kmw",
+    "category": "account"
+   },
+   {
+    "text": "tly!Oul7z",
+    "category": "credential"
+   },
+   {
+    "text": "pv.xwbw",
+    "category": "account"
+   },
+   {
+    "text": "Ayh%JhOPCP",
+    "category": "credential"
+   },
+   {
+    "text": "lh.iec",
+    "category": "account"
+   },
+   {
+    "text": "yss$MQ4hR",
+    "category": "credential"
+   },
+   {
+    "text": "賴緹湉",
+    "category": "person"
+   },
+   {
+    "text": "0913313071",
+    "category": "phone"
+   },
+   {
+    "text": "zgyludx@example.org",
+    "category": "email"
+   }
+  ],
+  "non_sensitive": [
+   {
+    "text": "1.0.4",
+    "kind": "version"
+   },
+   {
+    "text": "Ubuntu 22.04",
+    "kind": "version"
+   },
+   {
+    "text": "RHEL 9.2",
+    "kind": "version"
+   },
+   {
+    "text": "Windows Server 2022",
+    "kind": "version"
+   },
+   {
+    "text": "https://www.example.gov.tw/",
+    "kind": "public_url"
+   },
+   {
+    "text": "OpenSSL 3.0.13",
+    "kind": "version"
+   },
+   {
+    "text": "ISO 27001:2022",
+    "kind": "standard"
+   },
+   {
+    "text": "8.15",
+    "kind": "clause"
+   }
+  ]
+ },
+ {
+  "doc_id": "d10_official",
+  "type": "公文",
+  "chars": 847,
+  "sensitive": [
+   {
+    "text": "趙嵐舫",
+    "category": "person"
+   },
+   {
+    "text": "(02)4111-5723#405",
+    "category": "phone"
+   },
+   {
+    "text": "tw.jujhaj63@example.com",
+    "category": "email"
+   },
+   {
+    "text": "林湉暄",
+    "category": "person"
+   }
+  ],
+  "non_sensitive": [
+   {
+    "text": "臺灣新竹地方法院",
+    "kind": "org"
+   },
+   {
+    "text": "300新竹市北區（虛構地址）",
+    "kind": "public_address"
+   },
+   {
+    "text": "北辰系統整合有限公司",
+    "kind": "org"
+   },
+   {
+    "text": "竹院資字第1150004321號",
+    "kind": "doc_no"
+   },
+   {
+    "text": "契約第8條",
+    "kind": "clause"
+   }
+  ]
+ },
+ {
+  "doc_id": "d11_incident",
+  "type": "資安事件通報單",
+  "chars": 959,
+  "sensitive": [
+   {
+    "text": "徐瑀緹",
+    "category": "person"
+   },
+   {
+    "text": "0972-320-148",
+    "category": "phone"
+   },
+   {
+    "text": "jxzdkza@example.net",
+    "category": "email"
+   },
+   {
+    "text": "呂瀅澔",
+    "category": "person"
+   },
+   {
+    "text": "(02)2831-4548#446",
+    "category": "phone"
+   },
+   {
+    "text": "192.168.121.55",
+    "category": "ip"
+   },
+   {
+    "text": "svc_wrag",
+    "category": "account"
+   },
+   {
+    "text": "192.168.179.57",
+    "category": "ip"
+   },
+   {
+    "text": "XH4!J3ca1IX8",
+    "category": "credential"
+   },
+   {
+    "text": "洪澔璇",
+    "category": "person"
+   },
+   {
+    "text": "劉蘅珮",
+    "category": "person"
+   }
+  ],
+  "non_sensitive": [
+   {
+    "text": "北辰系統整合有限公司",
+    "kind": "org"
+   }
+  ]
+ }
+]

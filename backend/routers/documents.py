@@ -4,102 +4,89 @@ from fastapi import APIRouter, Depends, Query
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import text
 
-from config import settings
 from services.db_service import get_db
 from services.doc_errors import classify_db_error, classify_embedding_error, precheck_index_text
+from services.indexer import embed_chunks, prepare, vec_literal, write_document
 from services.ollama_service import ollama
+from services.retrieval import search_chunks
+from services.usage import set_usage_project
 
 router = APIRouter()
 logger = logging.getLogger(__name__)
 
 
 def _vec(embedding: list[float]) -> str:
-    """將 embedding list 轉成 pgvector 可接受的字串格式 '[0.1,0.2,...]'"""
-    return "[" + ",".join(str(v) for v in embedding) + "]"
+    """將 embedding list 轉成 pgvector 可接受的字串格式 '[0.1,0.2,...]'（保留給舊呼叫端）"""
+    return vec_literal(embedding)
 
 
 @router.post("/index")
 async def index_document(payload: dict, db: AsyncSession = Depends(get_db)):
     """
+    存文件 → 切段 → 逐批算 embedding → 寫 document_chunks。
+
+    - 文字先做空白 / 空儲存格壓縮；documents.content 存壓縮後全文
+    - 壓縮後超過 MAX_DOC_CHARS（預設 300000）→ 只切段前 N 字，回應與 documents 標記 truncated
+    - documents.embedding = 第一段的向量（相容舊程式）
     失敗時回結構化錯誤 {error_code, reason, hint, detail}：
       empty_text(422) / nul_in_text(422) / embedding_failed(502) / db_error(500)
-    文字本身不做任何清理（修復由 /api/ocr/extract repair=true 負責），以保留原始狀況。
+    文字本身不做修復（修復由 /api/ocr/extract repair=true 負責），以保留原始狀況。
     """
     doc_text = payload.get("text", "")
     project_id = payload.get("project_id", "default")
     filename = payload.get("filename", "")
+    set_usage_project(project_id)
 
     pre = precheck_index_text(doc_text)
     if pre:
         return pre.response()
 
-    # nomic-embed-text 這個 ollama 容器目前實際能吃的 physical batch size 是 2048
-    # tokens（送 options.num_ctx/num_batch 覆寫沒有用，模型已常駐載入、per-request
-    # 覆寫不會生效），中文文字常常 1 字吃超過 1 個 token，4000 字很容易超過 2048
-    # tokens 而讓 ollama /api/embeddings 回 500。1500 字留了足夠安全邊際。
-    # 截斷長度改由 settings.embed_max_chars 控制（Ollama 預設 1500；ModaOne bge-m3 設 6000）。
+    prep = prepare(doc_text)
+    if not prep.chunks:
+        pre = precheck_index_text("")
+        return pre.response()
+
     try:
-        embedding = await ollama.embed(doc_text[: settings.embed_max_chars])
+        embeddings = await embed_chunks(prep)
     except Exception as exc:
         logger.warning("embedding 失敗 %s/%s：%s", project_id, filename, exc)
         return classify_embedding_error(exc).response()
 
     try:
-        await db.execute(
-            text("""
-                INSERT INTO documents (project_id, filename, content, embedding)
-                VALUES (:project_id, :filename, :content, CAST(:embedding AS vector))
-                ON CONFLICT (project_id, filename)
-                DO UPDATE SET content = EXCLUDED.content, embedding = EXCLUDED.embedding,
-                              embedding_stale = FALSE
-            """),
-            {
-                "project_id": project_id,
-                "filename": filename,
-                "content": doc_text,
-                "embedding": _vec(embedding),
-            },
-        )
+        await write_document(db, project_id, filename, prep, embeddings)
         await db.commit()
     except Exception as exc:
         await db.rollback()
         logger.warning("入庫寫入失敗 %s/%s：%s", project_id, filename, exc)
         return classify_db_error(exc).response()
-    return {"status": "indexed", "filename": filename}
+    return {
+        "status": "indexed",
+        "filename": filename,
+        "chunks": len(prep.chunks),
+        "truncated": prep.truncated,
+        "original_chars": prep.original_chars,
+        "stored_chars": len(prep.content),
+        "embed_chars": prep.embed_chars,
+    }
 
 
 @router.post("/search")
 async def search_documents(payload: dict, db: AsyncSession = Depends(get_db)):
+    """切段混合檢索。results 每筆 = 一段（同一文件可出現多次）。"""
     query = payload.get("query", "")
     project_id = payload.get("project_id")
-    top_k = payload.get("top_k", 5)
+    top_k = int(payload.get("top_k", 5))
+    set_usage_project(project_id)
 
     query_embedding = await ollama.embed(query)
-    vec_str = _vec(query_embedding)
-
-    where_clause = "WHERE project_id = :project_id" if project_id else ""
-    params: dict = {"embedding": vec_str, "top_k": top_k}
-    if project_id:
-        params["project_id"] = project_id
-
-    rows = await db.execute(
-        text(f"""
-            SELECT filename, content,
-                   1 - (embedding <=> CAST(:embedding AS vector)) AS relevance
-            FROM documents
-            {where_clause}
-            ORDER BY embedding <=> CAST(:embedding AS vector)
-            LIMIT :top_k
-        """),
-        params,
-    )
-    results = rows.fetchall()
-
+    hits = await search_chunks(db, query_embedding, query, project_id, top_k=top_k)
     return {
         "query": query,
         "results": [
-            {"filename": r.filename, "content": r.content[:500], "relevance": round(r.relevance, 4)}
-            for r in results
+            {"filename": h.filename, "content": h.content[:500], "relevance": round(h.relevance, 4),
+             "chunk_index": h.chunk_index, "chunk_total": h.chunk_total,
+             "char_start": h.char_start, "char_end": h.char_end}
+            for h in hits
         ],
     }
 
@@ -110,18 +97,19 @@ async def list_documents(
     limit: int = Query(500, ge=1, le=1000),
     db: AsyncSession = Depends(get_db),
 ):
-    where = "WHERE project_id = :project_id" if project_id else ""
+    where = "WHERE d.project_id = :project_id" if project_id else ""
     params: dict = {"limit": limit}
     if project_id:
         params["project_id"] = project_id
 
     rows = await db.execute(
         text(f"""
-            SELECT id, project_id, filename, length(content) AS char_count,
-                   file_type, tags, created_at, embedding_stale
-            FROM documents
+            SELECT d.id, d.project_id, d.filename, length(d.content) AS char_count,
+                   d.file_type, d.tags, d.created_at, d.embedding_stale, d.truncated, d.original_chars,
+                   (SELECT count(*) FROM document_chunks c WHERE c.document_id = d.id) AS chunk_count
+            FROM documents d
             {where}
-            ORDER BY created_at DESC
+            ORDER BY d.created_at DESC
             LIMIT :limit
         """),
         params,
@@ -140,6 +128,9 @@ async def list_documents(
                 "tags": d.tags or [],
                 "summary": "",
                 "embeddingStale": bool(d.embedding_stale),
+                "chunkCount": int(d.chunk_count),
+                "truncated": bool(d.truncated),
+                "originalChars": d.original_chars,
             }
             for d in docs
         ]

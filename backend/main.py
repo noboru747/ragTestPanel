@@ -1,7 +1,7 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from routers import agent, git_router, ocr, documents, query, projects, generate, requests as requests_router, templates as templates_router, feedback as feedback_router, pdf as pdf_router, company_vars as company_vars_router, mask as mask_router
+from routers import agent, git_router, ocr, documents, query, projects, generate, requests as requests_router, templates as templates_router, feedback as feedback_router, pdf as pdf_router, company_vars as company_vars_router, mask as mask_router, usage as usage_router
 
 app = FastAPI(title="RGA KM Backend", version="0.1.0")
 
@@ -25,6 +25,7 @@ app.include_router(feedback_router.router, prefix="/api/feedback", tags=["feedba
 app.include_router(pdf_router.router, prefix="/api/generate/pdf", tags=["pdf"])
 app.include_router(company_vars_router.router, prefix="/api/company-vars", tags=["company-vars"])
 app.include_router(mask_router.router, prefix="/api/mask", tags=["mask"])
+app.include_router(usage_router.router, prefix="/api/usage", tags=["usage"])
 
 
 @app.get("/health")

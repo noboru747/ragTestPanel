@@ -7,7 +7,8 @@ from sqlalchemy import text
 
 from services.db_service import get_db
 from services.ollama_service import ollama
-from routers.documents import _vec
+from services.retrieval import search_doc_rows
+from services.usage import set_usage_project
 
 router = APIRouter()
 
@@ -27,26 +28,10 @@ async def generate_proposal(payload: dict, db: AsyncSession = Depends(get_db)):
     if not project_id:
         raise HTTPException(status_code=422, detail="project_id is required")
 
-    # 1. 向量搜尋：從知識庫抓相關資料
+    # 1. 切段混合檢索：從知識庫抓相關段落（同文件相鄰段已合併）
+    set_usage_project(project_id)
     search_q = f"{tender_name} {service_type} 服務內容 人員規格 合約條件 投標"
-    q_vec = await ollama.embed(search_q)
-    vec_str = _vec(q_vec)
-
-    where = "WHERE project_id = :project_id"
-    params: dict = {"embedding": vec_str, "top_k": 6, "project_id": project_id}
-
-    rows = await db.execute(
-        text(f"""
-            SELECT filename, content,
-                   1 - (embedding <=> CAST(:embedding AS vector)) AS relevance
-            FROM documents
-            {where}
-            ORDER BY embedding <=> CAST(:embedding AS vector)
-            LIMIT :top_k
-        """),
-        params,
-    )
-    results = rows.fetchall()
+    results = await search_doc_rows(db, search_q, project_id, top_k=6)
 
     # 2. 組建 RAG context
     context_parts = [
@@ -140,25 +125,9 @@ async def generate_from_template(payload: dict, db: AsyncSession = Depends(get_d
         query = " ".join(str(v) for v in fields.values() if v)
         top_k = 5
 
-    # 3. 向量搜尋（限制同 project_id）
-    q_vec = await ollama.embed(query)
-    vec_str = _vec(q_vec)
-
-    where = "WHERE project_id = :project_id"
-    params: dict = {"embedding": vec_str, "top_k": top_k, "project_id": project_id}
-
-    rows = await db.execute(
-        text(f"""
-            SELECT filename, content,
-                   1 - (embedding <=> CAST(:embedding AS vector)) AS relevance
-            FROM documents
-            {where}
-            ORDER BY embedding <=> CAST(:embedding AS vector)
-            LIMIT :top_k
-        """),
-        params,
-    )
-    results = rows.fetchall()
+    # 3. 切段混合檢索（限制同 project_id）
+    set_usage_project(project_id)
+    results = await search_doc_rows(db, query, project_id, top_k=top_k)
 
     # 4. 組建 RAG context
     context_parts = [

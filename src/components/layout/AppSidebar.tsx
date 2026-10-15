@@ -13,6 +13,7 @@ import {
   ClipboardList,
   Settings,
   ShieldCheck,
+  Gauge,
 } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { Badge } from "@/components/ui/badge"
@@ -23,6 +24,7 @@ const IS_DEV = process.env.NODE_ENV === "development"
 
 const navItems = [
   { href: "/", icon: LayoutDashboard, label: "儀表板" },
+  { href: "/usage", icon: Gauge, label: "AI 用量" },
   { href: "/query", icon: MessageSquareText, label: "知識查詢" },
   { href: "/generate", icon: FileText, label: "生成文件" },
   { href: "/ocr", icon: Upload, label: "OCR 入庫" },

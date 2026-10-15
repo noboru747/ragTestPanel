@@ -38,6 +38,43 @@ SET default_tablespace = '';
 SET default_table_access_method = heap;
 
 --
+-- Name: document_chunks; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.document_chunks (
+    id bigint NOT NULL,
+    document_id integer NOT NULL,
+    project_id text NOT NULL,
+    chunk_index integer NOT NULL,
+    content text NOT NULL,
+    char_start integer NOT NULL,
+    char_end integer NOT NULL,
+    embedding public.vector(1024),
+    keywords_tsv tsvector,
+    created_at timestamp with time zone DEFAULT now()
+);
+
+
+--
+-- Name: document_chunks_id_seq; Type: SEQUENCE; Schema: public; Owner: -
+--
+
+CREATE SEQUENCE public.document_chunks_id_seq
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1;
+
+
+--
+-- Name: document_chunks_id_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: -
+--
+
+ALTER SEQUENCE public.document_chunks_id_seq OWNED BY public.document_chunks.id;
+
+
+--
 -- Name: document_templates; Type: TABLE; Schema: public; Owner: -
 --
 
@@ -68,7 +105,9 @@ CREATE TABLE public.documents (
     doc_version text,
     effective_date date,
     superseded_by integer,
-    embedding_stale boolean DEFAULT false NOT NULL
+    embedding_stale boolean DEFAULT false NOT NULL,
+    truncated boolean DEFAULT false NOT NULL,
+    original_chars integer
 );
 
 
@@ -125,6 +164,48 @@ CREATE SEQUENCE public.generated_docs_id_seq
 --
 
 ALTER SEQUENCE public.generated_docs_id_seq OWNED BY public.generated_docs.id;
+
+
+--
+-- Name: llm_usage; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.llm_usage (
+    id bigint NOT NULL,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    provider text NOT NULL,
+    model text,
+    operation text NOT NULL,
+    endpoint text,
+    project_id text,
+    prompt_tokens integer DEFAULT 0 NOT NULL,
+    completion_tokens integer DEFAULT 0 NOT NULL,
+    total_tokens integer DEFAULT 0 NOT NULL,
+    latency_ms integer,
+    success boolean DEFAULT true NOT NULL,
+    error_code text,
+    request_id text,
+    estimated boolean DEFAULT false NOT NULL
+);
+
+
+--
+-- Name: llm_usage_id_seq; Type: SEQUENCE; Schema: public; Owner: -
+--
+
+CREATE SEQUENCE public.llm_usage_id_seq
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1;
+
+
+--
+-- Name: llm_usage_id_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: -
+--
+
+ALTER SEQUENCE public.llm_usage_id_seq OWNED BY public.llm_usage.id;
 
 
 --
@@ -194,6 +275,13 @@ CREATE TABLE public.templates (
 
 
 --
+-- Name: document_chunks id; Type: DEFAULT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.document_chunks ALTER COLUMN id SET DEFAULT nextval('public.document_chunks_id_seq'::regclass);
+
+
+--
 -- Name: documents id; Type: DEFAULT; Schema: public; Owner: -
 --
 
@@ -208,10 +296,33 @@ ALTER TABLE ONLY public.generated_docs ALTER COLUMN id SET DEFAULT nextval('publ
 
 
 --
+-- Name: llm_usage id; Type: DEFAULT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.llm_usage ALTER COLUMN id SET DEFAULT nextval('public.llm_usage_id_seq'::regclass);
+
+
+--
 -- Name: mask_mappings id; Type: DEFAULT; Schema: public; Owner: -
 --
 
 ALTER TABLE ONLY public.mask_mappings ALTER COLUMN id SET DEFAULT nextval('public.mask_mappings_id_seq'::regclass);
+
+
+--
+-- Name: document_chunks document_chunks_document_id_chunk_index_key; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.document_chunks
+    ADD CONSTRAINT document_chunks_document_id_chunk_index_key UNIQUE (document_id, chunk_index);
+
+
+--
+-- Name: document_chunks document_chunks_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.document_chunks
+    ADD CONSTRAINT document_chunks_pkey PRIMARY KEY (id);
 
 
 --
@@ -244,6 +355,14 @@ ALTER TABLE ONLY public.documents
 
 ALTER TABLE ONLY public.generated_docs
     ADD CONSTRAINT generated_docs_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: llm_usage llm_usage_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.llm_usage
+    ADD CONSTRAINT llm_usage_pkey PRIMARY KEY (id);
 
 
 --
@@ -287,6 +406,27 @@ ALTER TABLE ONLY public.templates
 
 
 --
+-- Name: idx_chunks_embedding; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_chunks_embedding ON public.document_chunks USING hnsw (embedding public.vector_cosine_ops);
+
+
+--
+-- Name: idx_chunks_keywords; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_chunks_keywords ON public.document_chunks USING gin (keywords_tsv);
+
+
+--
+-- Name: idx_chunks_project; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_chunks_project ON public.document_chunks USING btree (project_id);
+
+
+--
 -- Name: idx_documents_embedding; Type: INDEX; Schema: public; Owner: -
 --
 
@@ -308,10 +448,32 @@ CREATE INDEX idx_documents_tsv ON public.documents USING gin (content_tsv);
 
 
 --
+-- Name: idx_llm_usage_created; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_llm_usage_created ON public.llm_usage USING btree (created_at);
+
+
+--
+-- Name: idx_llm_usage_project; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_llm_usage_project ON public.llm_usage USING btree (project_id);
+
+
+--
 -- Name: idx_mask_mappings_project; Type: INDEX; Schema: public; Owner: -
 --
 
 CREATE INDEX idx_mask_mappings_project ON public.mask_mappings USING btree (project_id);
+
+
+--
+-- Name: document_chunks document_chunks_document_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.document_chunks
+    ADD CONSTRAINT document_chunks_document_id_fkey FOREIGN KEY (document_id) REFERENCES public.documents(id) ON DELETE CASCADE;
 
 
 --

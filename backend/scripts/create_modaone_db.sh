@@ -12,6 +12,10 @@
 #   bash backend/scripts/create_modaone_db.sh            # 建立（已存在則不動）
 #   bash backend/scripts/create_modaone_db.sh --recreate # DROP 後重建（會清空 rga_km_modaone！）
 #   bash backend/scripts/create_modaone_db.sh --dump-only # 只重新產生 init_modaone.sql
+#   bash backend/scripts/create_modaone_db.sh --migrate   # 只把 db/migrate_*.sql 套到 rga_km 與 rga_km_modaone（冪等）
+#
+# 向量維度差異：migrate_chunks_usage.sql 的 document_chunks.embedding 維度自動取自同 DB 的
+# documents.embedding（rga_km 768 / rga_km_modaone 1024），同一份 migration 兩個 DB 都能套。
 #
 # 只讀取 rga_km 的 schema，不會修改 rga_km。
 set -euo pipefail
@@ -30,6 +34,17 @@ if [ "$DST_DB" = "$SRC_DB" ]; then
 fi
 
 psql_() { docker exec -i "$CONTAINER" psql -v ON_ERROR_STOP=1 -U "$PGUSER_" "$@"; }
+
+if [ "$MODE" = "--migrate" ]; then
+  for db in "$SRC_DB" "$DST_DB"; do
+    for mig in "$SCRIPT_DIR"/../db/migrate_*.sql; do
+      [ -f "$mig" ] || continue
+      echo "[migrate] $(basename "$mig") → $db"
+      psql_ -d "$db" -q < "$mig"
+    done
+  done
+  echo "完成（--migrate）"; exit 0
+fi
 
 echo "[1/3] 從 $SRC_DB 匯出 schema 並轉換 → $OUT_SQL"
 docker exec "$CONTAINER" pg_dump -U "$PGUSER_" -d "$SRC_DB" --schema-only --no-owner --no-privileges \

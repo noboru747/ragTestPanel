@@ -9,19 +9,20 @@ import { Button } from "@/components/ui/button"
 import { Textarea } from "@/components/ui/textarea"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { Separator } from "@/components/ui/separator"
-import { MessageSquareText, Send, FileText, Sparkles, ChevronDown, ShieldCheck, Eye, EyeOff } from "lucide-react"
+import { MessageSquareText, Send, Sparkles, ChevronDown, ShieldCheck, Eye, EyeOff } from "lucide-react"
 import { BackendErrorBanner } from "@/components/backend-error-banner"
 import { MaskedText } from "@/components/masked-answer"
 import { fetchJson } from "@/lib/backend-fetch"
 import { InlineSpinner } from "@/components/loading"
 import { WaitingBubble } from "@/components/loading/waiting-bubble"
 import { countRestored, splitMaskedText, type MaskMapping } from "@/lib/mask"
+import { QuerySources, type QuerySource } from "@/components/query-sources"
 
 type Message = {
   id: string
   role: "user" | "assistant"
   content: string
-  sources?: { docId: string; docName: string; relevance: number }[]
+  sources?: QuerySource[]
   /** 送出當下的查詢範圍（避免切換專案後舊訊息的 badge 跟著變） */
   projectId?: string
   projectName?: string
@@ -372,26 +373,11 @@ export default function QueryPage() {
                         )
                       })()}
                       {msg.sources && msg.sources.length > 0 && (
-                        <div className="space-y-1">
-                          <p className="text-[11px] text-muted-foreground flex items-center gap-1">
-                            <FileText className="h-3 w-3" />
-                            參考來源（{msg.sources.length} 份文件）
-                          </p>
-                          {msg.sources.map((src) => (
-                            <div
-                              key={src.docId}
-                              className="flex items-center justify-between text-xs bg-muted rounded-md px-3 py-1.5"
-                            >
-                              <span className="truncate">{src.docName}</span>
-                              <Badge
-                                variant="outline"
-                                className="text-[10px] ml-2 shrink-0"
-                              >
-                                {(src.relevance * 100).toFixed(0)}% 相關
-                              </Badge>
-                            </div>
-                          ))}
-                        </div>
+                        <QuerySources
+                          sources={msg.sources}
+                          mappings={msg.mappings}
+                          showOriginal={!showCodes[msg.id]}
+                        />
                       )}
                     </div>
                   )}

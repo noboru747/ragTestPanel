@@ -12,7 +12,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from services.db_service import get_db
 from services.ollama_service import ollama
-from routers.documents import _vec
+from services.retrieval import search_doc_rows
+from services.usage import set_usage_project
 
 router = APIRouter()
 
@@ -196,27 +197,10 @@ async def generate_for_request(req_id: str, db: AsyncSession = Depends(get_db)):
     _write_md(req_id, fm, "\n" + body_before_result + "\n\n---\n\n## ✅ 生成結果\n\n（生成中...）\n")
 
     try:
-        # RAG 搜尋
+        # RAG 搜尋（切段混合檢索；無 project_id 時跨專案）
+        set_usage_project(project_id or None)
         search_q = f"{title} {form_data.get('service_type', '')} 服務內容 合約條件"
-        q_vec = await ollama.embed(search_q)
-        vec_str = _vec(q_vec)
-        where  = "WHERE project_id = :project_id" if project_id else ""
-        params: dict = {"embedding": vec_str, "top_k": 6}
-        if project_id:
-            params["project_id"] = project_id
-
-        from sqlalchemy import text as sa_text
-        rows = await db.execute(
-            sa_text(f"""
-                SELECT filename, content,
-                       1 - (embedding <=> CAST(:embedding AS vector)) AS relevance
-                FROM documents {where}
-                ORDER BY embedding <=> CAST(:embedding AS vector)
-                LIMIT :top_k
-            """),
-            params,
-        )
-        results = rows.fetchall()
+        results = await search_doc_rows(db, search_q, project_id or None, top_k=6)
 
         context_parts = [
             f"【{r.filename}】\n{r.content[:1200].strip()}"

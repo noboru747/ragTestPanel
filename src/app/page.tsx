@@ -36,6 +36,7 @@ import {
 import { BackendErrorBanner } from "@/components/backend-error-banner"
 import { fetchJson } from "@/lib/backend-fetch"
 import { InlineSpinner } from "@/components/loading"
+import { UsageSummaryCard } from "@/components/usage/usage-summary-card"
 
 type TemplateField = {
   key: string
@@ -520,6 +521,9 @@ export default function DashboardPage() {
           </Card>
         ))}
       </div>
+
+      {/* AI 用量（近 7 天） */}
+      <UsageSummaryCard />
 
       {/* 索引進度 */}
       {stats && stats.totalDocuments > 0 && (
